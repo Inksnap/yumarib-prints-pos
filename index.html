@@ -65,6 +65,8 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .cart-panel{position:sticky;top:76px}
 .cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)}
 .qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:800;padding:0}
+.qty-input{width:64px;text-align:center;padding:6px 4px;font-weight:800;font-size:15px}
+.qty-input:focus{outline:2px solid var(--accent)}
 .tot-row{display:flex;justify-content:space-between;padding:5px 0}
 .tot-row.grand{font-weight:800;font-size:17px;border-top:1px solid var(--border);margin-top:6px;padding-top:10px}
 .pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent)}
@@ -543,8 +545,19 @@ function renderSell(){
     var stockHtml="";
     if(p.stock===0)stockHtml='<div class="stock-warn">Out of stock</div>';
     else if(p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt)stockHtml='<div class="stock-low">Low stock: '+p.stock+' left</div>';
-    b.innerHTML=(cartQty(p.id)?'<span class="qty-badge">'+cartQty(p.id)+'</span>':'')+'<div class="tname">'+esc(p.name)+'</div><div class="tprice">'+fmt(p.price)+'</div><div class="tunit">'+esc(p.unit||"per 1")+' · '+esc(p.category)+'</div>'+stockHtml;
-    b.onclick=function(){addToCart(p)};
+    b.innerHTML=(cartQty(p.id)?'<span class="qty-badge" title="Tap to type a quantity">'+cartQty(p.id)+'</span>':'')+'<div class="tname">'+esc(p.name)+'</div><div class="tprice">'+fmt(p.price)+'</div><div class="tunit">'+esc(p.unit||"per 1")+' · '+esc(p.category)+'</div>'+stockHtml;
+    b.title=cartQty(p.id)?"Tap to add 1 more. Tap the quantity badge to type a quantity.":"Tap to add to sale";
+    b.onclick=function(ev){
+      if(ev&&ev.target&&ev.target.classList&&ev.target.classList.contains("qty-badge")){
+        var it0=cart.filter(function(x){return x.productId===p.id})[0];if(!it0)return;
+        var raw=prompt("Quantity for "+p.name, String(it0.qty));if(raw===null)return;
+        var v=Math.floor(Number(raw)||0);
+        if(v<=0){cart=cart.filter(function(x){return x!==it0})}
+        else{if(p.stock!==null&&p.stock!==undefined&&v>p.stock){alert("Only "+p.stock+" left in stock.");v=p.stock}it0.qty=v}
+        renderSell();return;
+      }
+      addToCart(p);
+    };
     if(p.stock===0)b.disabled=true;
     grid.appendChild(b);
   });
@@ -557,20 +570,8 @@ function addToCart(p){
   else cart.push({key:uid(),productId:p.id,name:p.name,category:p.category,price:p.price,qty:1});
   renderSell();
 }
-function renderCart(){
-  syncPaidDefaults();
-  var box=$("cartItems");box.innerHTML="";
-  $("cartEmpty").style.display=cart.length?"none":"block";
-  cart.forEach(function(it){
-    var row=document.createElement("div");row.className="cart-line";
-    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+fmt(it.price)+' each</span></div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><strong>'+it.qty+'</strong><button class="qty-btn" data-a="plus">+</button><strong style="min-width:70px;text-align:right">'+fmt(it.price*it.qty)+'</strong></div>';
-    row.querySelector('[data-a="minus"]').onclick=function(){it.qty--;if(it.qty<=0)cart=cart.filter(function(x){return x!==it});renderSell()};
-    row.querySelector('[data-a="plus"]').onclick=function(){
-      var p=state.products.filter(function(x){return x.id===it.productId})[0];
-      if(p&&p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}
-      it.qty++;renderSell()};
-    box.appendChild(row);
-  });
+
+function refreshCartTotals(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
   $("cartSubtotal").textContent=fmt(calc.subtotal);$("cartDiscount").textContent=fmt(calc.discount);$("cartTotal").textContent=fmt(calc.total);
   var paid=Number($("amountPaid").value||0);
@@ -581,6 +582,40 @@ function renderCart(){
   $("chargeBtn").disabled=cart.length===0||calc.total<=0;
   $("chargeHint").textContent=bal>0?"Part payment: "+fmt(bal)+" will stay as balance on the customer. Add the customer name above.":"";
   updateHeaderToday();
+}
+function renderCart(){
+  syncPaidDefaults();
+  var box=$("cartItems");box.innerHTML="";
+  $("cartEmpty").style.display=cart.length?"none":"block";
+  cart.forEach(function(it){
+    var row=document.createElement("div");row.className="cart-line";
+    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+fmt(it.price)+' each</span></div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><input type="number" class="qty-input" min="0" step="1" value="'+it.qty+'" aria-label="Quantity for '+esc(it.name)+'"><button class="qty-btn" data-a="plus">+</button><strong class="line-total" style="min-width:70px;text-align:right">'+fmt(it.price*it.qty)+'</strong></div>';
+    row.querySelector('[data-a="minus"]').onclick=function(){it.qty--;if(it.qty<=0)cart=cart.filter(function(x){return x!==it});renderSell()};
+    row.querySelector('[data-a="plus"]').onclick=function(){
+      var p=state.products.filter(function(x){return x.id===it.productId})[0];
+      if(p&&p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}
+      it.qty++;renderSell()};
+    (function(){
+      var qin=row.querySelector('.qty-input');
+      if(!qin||!qin.addEventListener)return;
+      var prod=state.products.filter(function(x){return x.id===it.productId})[0];
+      qin.addEventListener('input',function(){
+        var v=Math.floor(Number(qin.value)||0);
+        if(prod&&prod.stock!==null&&prod.stock!==undefined&&v>prod.stock){v=prod.stock;qin.value=String(v)}
+        it.qty=v;
+        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(it.price*it.qty);
+        refreshCartTotals();
+      });
+      qin.addEventListener('change',function(){
+        var v=Math.floor(Number(qin.value)||0);
+        if(v<=0){cart=cart.filter(function(x){return x!==it})}
+        else{if(prod&&prod.stock!==null&&prod.stock!==undefined&&v>prod.stock){alert("Only "+prod.stock+" left in stock.");v=prod.stock}it.qty=v}
+        renderSell();
+      });
+    })();
+    box.appendChild(row);
+  });
+  refreshCartTotals();
 }
 function syncPaidDefaults(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
