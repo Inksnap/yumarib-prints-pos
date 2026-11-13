@@ -42,3 +42,8 @@ There is no automatic backup in this static version. To keep a copy of the data,
 
 ## Receipt logo (2026-11-13)
 Website shows the colour PNG logo. Receipt shows logo-grey.png, the same logo converted to greyscale with its black background kept, so the white YP and PRINTS stay visible on white paper and on the Xprinter. The old pure black-and-white transparent logo made the white parts invisible on white, which is why the logo did not show on the receipt.
+
+## Logo (receipt, 2026-11-13)
+- Website/header/login: colour PNG logo (logo-color.png, with black background).
+- Receipt: black clipart PNG, no background (logo-black-clipart.png), made from the colour logo by removing the outer black background and turning the shapes black, keeping YP/PRINTS details as negative space. Transparent PNG, 1208x400.
+- The previous all-black file sent by the user (yumarib_prints_black_clipart_16_gwxu.png) was a JPEG with every pixel black, so it could not be used as a logo.
