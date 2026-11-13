@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yumarib Prints POS</title>
+<style>
+/* Yumarib Prints POS - static single file. Cream #f7f5ef, green #0e6b3a, orange #e86a17, text #14201a.
+   Headings: Archivo, system-ui fallback (offline, no Google Fonts). Body: system-ui. */
+*{box-sizing:border-box}
+:root{--bg:#f7f5ef;--surface:#fff;--text:#14201a;--dim:#5c6a60;--border:#d9ded2;--green:#0e6b3a;--orange:#e86a17;--radius:10px;--blue:#2563eb;--slate:#475569;--redbrown:#8a3324}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45}
+h1,h2,h3,.font-display{font-family:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,select,textarea{font-family:inherit;font-size:14px}
+button{cursor:pointer}
+input,select,textarea{padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);width:100%}
+input:focus,select:focus{outline:2px solid var(--green);outline-offset:1px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.muted{color:var(--dim);font-size:13px}
+.small{font-size:13px}
+.btn{border:0;border-radius:8px;padding:10px 16px;font-weight:700;background:var(--green);color:#fff}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-ghost{background:#eef2ea;color:var(--text);border:1px solid var(--border)}
+.btn-danger{background:#b3261e;color:#fff}
+.btn-sm{padding:6px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:999px;padding:8px 16px;font-weight:700}
+.tab.active{background:var(--green);color:#fff;border-color:var(--green)}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px;text-align:right}
+.header-right .today{font-weight:800}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.view{display:none}.view.active{display:block}
+.pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 14px;font-weight:700}
+.pill.active{background:var(--green);color:#fff;border-color:var(--green)}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.sell-grid{display:grid;grid-template-columns:1fr 370px;gap:16px;align-items:start}
+@media(max-width:900px){.sell-grid{grid-template-columns:1fr}}
+.product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:1100px){.product-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.product-grid{grid-template-columns:repeat(2,1fr)}}
+.tile{background:#fff;border:1px solid var(--border);border-top:5px solid var(--green);border-radius:var(--radius);padding:12px;text-align:left;position:relative;min-height:86px}
+.tile:hover{border-color:var(--green)}
+.tile.in-cart{border:1px solid var(--green);border-top:5px solid var(--green);box-shadow:0 0 0 1px var(--green)}
+.tile .tname{font-weight:700;font-size:14px}
+.tile .tprice{font-weight:800;color:var(--green);margin-top:4px}
+.tile .tunit{color:var(--dim);font-size:12px}
+.qty-badge{position:absolute;top:8px;right:8px;background:var(--green);color:#fff;border-radius:999px;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 6px}
+.stock-warn{font-size:12px;font-weight:700;color:#b3261e}
+.stock-low{font-size:12px;font-weight:700;color:#8a6d00}
+.cat-DI{border-top-color:#0e6b3a}.cat-LargeFormat{border-top-color:#2563eb}.cat-Borderless{border-top-color:#475569}.cat-UVPrint{border-top-color:#8a3324}
+.cart-panel{position:sticky;top:76px}
+.cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eef0e8}
+.qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:#fff;font-weight:800;padding:0}
+.tot-row{display:flex;justify-content:space-between;padding:5px 0}
+.tot-row.grand{font-weight:800;font-size:17px;border-top:1px solid var(--border);margin-top:6px;padding-top:10px}
+.pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:var(--green)}
+.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:1100px){.grid6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.grid6{grid-template-columns:repeat(2,1fr)}}
+.stat .label{color:var(--dim);font-size:13px}.stat .value{font-size:22px;font-weight:800;font-family:"Archivo",system-ui,sans-serif}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid #eef0e8;vertical-align:top}
+th{color:var(--dim);font-size:12px;text-transform:uppercase}
+.status{border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-block}
+.st-Pending{background:#fef3c7}.st-InProduction{background:#dbeafe}.st-Ready{background:#dcfce7}.st-Collected{background:#e5e7eb}
+.auth-wrap{max-width:520px;margin:60px auto;padding:0 16px}
+.user-tile{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px}
+.user-tile.selected{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:none}
+.role-pill{font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px;background:#eef2ea}
+.role-pill.admin{background:#dcfce7;color:#0e6b3a}
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-back.open{display:flex}
+.modal{background:#fff;border-radius:var(--radius);max-width:480px;width:100%;padding:20px;max-height:92vh;overflow:auto}
+.success-box{background:#e6f4ea;border:1px solid #b7dfc2;border-radius:var(--radius);padding:14px;text-align:center}
+.success-box h3{color:var(--green);margin:0 0 6px}
+.receipt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#000;background:#fff}
+.receipt h3,.receipt h4{margin:4px 0;text-align:center}
+.receipt .rline{display:flex;justify-content:space-between}
+.receipt hr{border:0;border-top:1px dashed #000;margin:6px 0}
+#printArea{display:none}
+@media print{
+  body{background:#fff}
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block;position:absolute;left:0;top:0;width:100%}
+  #printArea .receipt{width:72mm;margin:0 auto}
+  #printArea .receipt.narrow{width:50mm}
+  @page{margin:0}
+}
+.warn-box{background:#fff7e6;border:1px solid #f0c36d;border-radius:var(--radius);padding:12px}
+.err{color:#b3261e;font-weight:700}
+.ok{color:var(--green);font-weight:700}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
+.logo-preview{max-width:120px;max-height:80px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="printArea" aria-hidden="true"></div>
+
+<!-- FIRST SETUP -->
+<div id="setupScreen" class="auth-wrap" style="display:none">
+  <div class="card">
+    <h1 style="margin:0 0 4px">Yumarib Prints POS</h1>
+    <p class="muted" style="margin-top:0">First setup. Create the admin account. This is saved only in this browser.</p>
+    <label>Username</label><input id="suUsername" autocomplete="off" placeholder="e.g. admin">
+    <label>Your name</label><input id="suName" autocomplete="off" placeholder="e.g. Yumarib">
+    <label>Password (min 4 characters)</label><input id="suPassword" type="password" autocomplete="new-password">
+    <label>Confirm password</label><input id="suPassword2" type="password" autocomplete="new-password">
+    <p id="setupErr" class="err"></p>
+    <button class="btn" id="setupBtn" style="width:100%;margin-top:8px">Create admin and start</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="auth-wrap" style="display:none">
+  <div class="card">
+    <h1 style="margin:0 0 4px">Yumarib Prints POS</h1>
+    <p class="muted" style="margin-top:0">Tap your name, then type your password.</p>
+    <div id="loginUsers"></div>
+    <div id="loginPassWrap" style="display:none">
+      <p><strong id="loginSelectedName"></strong> <span class="muted">enter your password to continue.</span></p>
+      <label>Password</label><input id="loginPassword" type="password" autocomplete="current-password">
+      <p id="loginErr" class="err"></p>
+      <button class="btn" id="loginBtn" style="width:100%">Log in</button>
+      <button class="btn-ghost btn" id="loginBack" style="width:100%;margin-top:8px">Choose a different user</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+<header class="no-print">
+  <nav class="tabs" aria-label="Main tabs">
+    <button class="tab active" data-tab="sell">Sell</button>
+    <button class="tab" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="jobs">Jobs</button>
+    <button class="tab" data-tab="products" id="tabProducts">Products</button>
+    <button class="tab" data-tab="admin" id="tabAdmin">Admin</button>
+  </nav>
+  <div class="header-right">
+    <div><div id="headerUser" style="font-weight:700"></div><div class="muted" id="headerRole"></div></div>
+    <div><div class="muted">Today total</div><div class="today" id="headerToday">₦0</div></div>
+    <button class="btn-ghost btn btn-sm" id="logoutBtn">Log out</button>
+  </div>
+</header>
+<main class="no-print">
+
+<!-- SELL -->
+<section id="view-sell" class="view active">
+  <div class="sell-grid">
+    <div>
+      <input id="sellSearch" placeholder="Search products..." autocomplete="off">
+      <div class="pill-row" id="catPills"></div>
+      <div class="card" style="margin-bottom:12px">
+        <h3 style="margin:0 0 4px">Custom job</h3>
+        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Enter size and price, e.g. SAV 9 x 15 inches.</p>
+        <div class="form-row">
+          <div><label>Job type</label><input id="customName" value="SAV"></div>
+          <div><label>Price (₦)</label><input id="customPrice" type="number" min="0" step="1" placeholder="0"></div>
+          <div><label>Width (inches)</label><input id="customWidth" type="number" min="0" step="0.5" placeholder="9"></div>
+          <div><label>Height (inches)</label><input id="customHeight" type="number" min="0" step="0.5" placeholder="15"></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="margin:0">Category</label>
+          <select id="customCat" style="width:auto"><option value="Large Format">Large Format</option><option value="UV Print">UV Print</option><option value="DI">DI — Direct Images</option><option value="Borderless">Borderless</option></select>
+          <button class="btn" id="addCustomBtn">Add custom job to sale</button>
+        </div>
+        <p id="customErr" class="err"></p>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+    </div>
+    <aside class="card cart-panel" aria-label="Current sale">
+      <h2 style="margin:0 0 8px">Current sale</h2>
+      <div id="cartItems"></div>
+      <p id="cartEmpty" class="muted">No items yet. Tap a product to add it.</p>
+      <div style="margin-top:10px">
+        <label>Discount</label>
+        <div style="display:flex;gap:8px">
+          <select id="discountType" style="width:110px"><option value="flat">Flat ₦</option><option value="percent">Percent %</option></select>
+          <input id="discountValue" type="number" min="0" step="1" value="0">
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="tot-row"><span>Subtotal</span><strong id="cartSubtotal">₦0</strong></div>
+        <div class="tot-row"><span>Discount</span><strong id="cartDiscount">₦0</strong></div>
+        <div class="tot-row grand"><span>Total</span><strong id="cartTotal">₦0</strong></div>
+      </div>
+      <label>Customer (needed for credit / pay later)</label>
+      <input id="custName" placeholder="Customer name" autocomplete="off">
+      <input id="custPhone" placeholder="Customer phone (for WhatsApp receipt)" autocomplete="off" style="margin-top:8px">
+      <label>Payment method</label>
+      <div class="pay-pills" id="payPills">
+        <button class="pill active" data-pay="Cash">Cash</button>
+        <button class="pill" data-pay="POS">POS</button>
+        <button class="pill" data-pay="Transfer">Transfer</button>
+      </div>
+      <label>Amount paid now (₦)</label><input id="amountPaid" type="number" min="0" step="1">
+      <div id="cashBox">
+        <label>Cash received (₦)</label><input id="cashReceived" type="number" min="0" step="1">
+        <div class="tot-row"><span>Change</span><strong id="cashChange">₦0</strong></div>
+      </div>
+      <div class="tot-row"><span>Balance owed</span><strong id="cartBalance">₦0</strong></div>
+      <p id="chargeHint" class="muted"></p>
+      <button class="btn btn-orange" id="chargeBtn" style="width:100%;height:52px;font-size:17px">Charge</button>
+      <button class="btn-ghost btn" id="clearCartBtn" style="width:100%;margin-top:8px">Clear sale</button>
+    </aside>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<section id="view-dashboard" class="view">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <h2 style="margin:0">Dashboard</h2>
+    <input id="dashDate" type="date" style="width:auto">
+  </div>
+  <div class="grid6" style="margin-top:12px">
+    <div class="card stat"><div class="label">Grand total</div><div class="value" id="dGrand">₦0</div></div>
+    <div class="card stat"><div class="label">Sales</div><div class="value" id="dSales">0</div></div>
+    <div class="card stat"><div class="label">Collected so far</div><div class="value" id="dCollected">₦0</div></div>
+    <div class="card stat"><div class="label">Still owed</div><div class="value" id="dOwed">₦0</div></div>
+    <div class="card stat"><div class="label">Before discount</div><div class="value" id="dBefore">₦0</div></div>
+    <div class="card stat"><div class="label">Discounts given</div><div class="value" id="dDiscounts">₦0</div></div>
+  </div>
+  <div id="lowStockBox" style="margin-top:12px"></div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card"><h3 style="margin-top:0">Totals by category</h3><div id="catTotals"></div></div>
+    <div class="card"><h3 style="margin-top:0">Money by payment</h3><div id="payTotals"></div></div>
+    <div class="card"><h3 style="margin-top:0">Sales by staff</h3><div id="staffTotals"></div></div>
+    <div class="card"><h3 style="margin-top:0">Daily cash closing</h3>
+      <div class="tot-row"><span>Cash received</span><strong id="closingCash">₦0</strong></div>
+      <div class="tot-row"><span>POS received</span><strong id="closingPos">₦0</strong></div>
+      <div class="tot-row"><span>Transfer received</span><strong id="closingTransfer">₦0</strong></div>
+      <div class="tot-row"><span>Expected cash in drawer</span><strong id="closingExpected">₦0</strong></div>
+      <label>Counted cash (₦)</label><input id="countedCash" type="number" min="0" step="1" placeholder="Count the cash in the drawer">
+      <div class="tot-row"><span>Difference (counted minus expected)</span><strong id="closingDiff">₦0</strong></div>
+      <button class="btn" id="saveClosingBtn" style="margin-top:8px">Save closing</button>
+      <p id="closingSaved" class="ok"></p>
+      <p class="muted">Expected cash is cash received today, minus cash expenses today. Count it, enter the counted amount, and check the difference is ₦0.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Today's sales</h3><div id="todaySales"></div></div>
+</section>
+
+<!-- JOBS -->
+<section id="view-jobs" class="view">
+  <h2 style="margin:0 0 12px">Jobs</h2>
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">New job</h3>
+    <div class="form-row">
+      <div><label>Customer name</label><input id="jobName" autocomplete="off"></div>
+      <div><label>Customer phone</label><input id="jobPhone" autocomplete="off"></div>
+      <div><label>Job description</label><input id="jobDesc" autocomplete="off" placeholder="e.g. 100 flyers, A5"></div>
+      <div><label>Total price (₦)</label><input id="jobTotal" type="number" min="0" step="1"></div>
+      <div><label>Deposit paid now (₦)</label><input id="jobDeposit" type="number" min="0" step="1" value="0"></div>
+    </div>
+    <p id="jobErr" class="err"></p>
+    <button class="btn" id="addJobBtn" style="margin-top:10px">Add job</button>
+  </div>
+  <div class="card"><h3 style="margin-top:0">All jobs</h3><div id="jobsList"></div></div>
+</section>
+
+<!-- PRODUCTS -->
+<section id="view-products" class="view">
+  <h2 style="margin:0 0 12px">Products <span class="muted" style="font-weight:400">(admin only)</span></h2>
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">Add product</h3>
+    <div class="form-row">
+      <div><label>Name</label><input id="prodName" autocomplete="off"></div>
+      <div><label>Category</label><select id="prodCat"><option>DI</option><option>Large Format</option><option>Borderless</option><option>UV Print</option></select></div>
+      <div><label>Price (₦)</label><input id="prodPrice" type="number" min="0" step="1"></div>
+      <div><label>Unit note</label><input id="prodUnit" placeholder="per 1 (or per 500)" autocomplete="off"></div>
+      <div><label>Stock (leave blank = not tracked)</label><input id="prodStock" type="number" min="0" step="1" placeholder="Blank = not tracked"></div>
+    </div>
+    <p id="prodErr" class="err"></p>
+    <button class="btn" id="addProdBtn" style="margin-top:10px">Add product</button>
+  </div>
+  <div class="card"><h3 style="margin-top:0">All products</h3><input id="prodSearch" placeholder="Search products..." style="margin-bottom:10px"><div id="prodList"></div></div>
+</section>
+
+<!-- ADMIN -->
+<section id="view-admin" class="view">
+  <h2 style="margin:0">Admin <span class="muted" style="font-weight:400">(admin only)</span></h2>
+  <div class="pill-row" id="adminPills">
+    <button class="pill active" data-admin="sales">Sales</button>
+    <button class="pill" data-admin="expenses">Expenses</button>
+    <button class="pill" data-admin="reports">Reports</button>
+    <button class="pill" data-admin="price">Price checker</button>
+    <button class="pill" data-admin="customers">Customers</button>
+    <button class="pill" data-admin="users">Users</button>
+    <button class="pill" data-admin="shop">Shop</button>
+  </div>
+
+  <div id="admin-sales" class="admin-sec card">
+    <h3 style="margin-top:0">Sales</h3>
+    <label>Date</label><input id="adminSalesDate" type="date" style="width:auto">
+    <div id="adminSalesList" style="margin-top:10px"></div>
+    <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Daily cash closing</h3>
+      <p class="muted">Use the Dashboard closing card for today. Saved closings:</p><div id="closingList"></div></div>
+  </div>
+
+  <div id="admin-expenses" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Expenses</h3>
+    <div class="form-row">
+      <div><label>What was it for?</label><input id="expTitle" autocomplete="off"></div>
+      <div><label>Amount (₦)</label><input id="expAmount" type="number" min="0" step="1"></div>
+      <div><label>Date</label><input id="expDate" type="date"></div>
+    </div>
+    <button class="btn" id="addExpBtn" style="margin-top:10px">Add expense</button>
+    <p id="expErr" class="err"></p>
+    <div id="expList" style="margin-top:12px"></div>
+    <div class="tot-row grand"><span>Net after expenses (all time)</span><strong id="netTotal">₦0</strong></div>
+  </div>
+
+  <div id="admin-reports" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Reports</h3>
+    <div class="form-row">
+      <div><label>From</label><input id="repFrom" type="date"></div>
+      <div><label>To</label><input id="repTo" type="date"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" id="repRun">Run report</button>
+      <button class="btn-ghost btn" id="exportCsvBtn">Export CSV (Excel)</button>
+      <button class="btn-ghost btn" id="printReportBtn">Print / Save as PDF</button>
+    </div>
+    <div id="repSummary" style="margin-top:12px"></div>
+    <div id="repTop" style="margin-top:12px"></div>
+  </div>
+
+  <div id="admin-price" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Price checker</h3>
+    <input id="priceSearch" placeholder="Type a product name..." autocomplete="off">
+    <div id="priceResult" style="margin-top:12px"></div>
+  </div>
+
+  <div id="admin-customers" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Customers</h3>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="custFilterOwed" style="width:auto"> Who owes us (balance above ₦0 only)</label>
+    <div id="custList" style="margin-top:12px"></div>
+  </div>
+
+  <div id="admin-users" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Users</h3>
+    <p class="muted">Admin creates users here. Every login needs a real username and password.</p>
+    <div class="form-row">
+      <div><label>Username</label><input id="newUsername" autocomplete="off"></div>
+      <div><label>Name</label><input id="newName" autocomplete="off"></div>
+      <div><label>Password (min 4 characters)</label><input id="newPassword" type="password" autocomplete="new-password"></div>
+      <div><label>Role</label><select id="newRole"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+    </div>
+    <p id="userErr" class="err"></p>
+    <button class="btn" id="addUserBtn" style="margin-top:10px">Create user</button>
+    <div id="userList" style="margin-top:12px"></div>
+  </div>
+
+  <div id="admin-shop" class="admin-sec card" style="display:none">
+    <h3 style="margin-top:0">Shop</h3>
+    <label>Shop name (shown on receipts)</label><input id="shopNameInput" autocomplete="off">
+    <label>Shop logo (shown on receipts, stored in this browser)</label><input id="logoInput" type="file" accept="image/*">
+    <img id="logoPreview" class="logo-preview" style="display:none" alt="Shop logo preview">
+    <label>Receipt paper width</label>
+    <div style="display:flex;gap:16px"><label style="display:flex;gap:6px;align-items:center"><input type="radio" name="paper" value="80" id="paper80" style="width:auto"> 80mm (Xprinter XP-80T, default)</label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="paper" value="58" id="paper58" style="width:auto"> 58mm</label></div>
+    <button class="btn" id="saveShopBtn" style="margin-top:12px">Save shop settings</button>
+    <p id="shopSaved" class="ok"></p>
+    <p class="muted">Printer: set your Xprinter XP-80T as the Default Printer in Windows, then use Print receipt. Paper width here must match the paper loaded in the printer.</p>
+  </div>
+</section>
+</main>
+</div>
+
+<!-- SUCCESS / RECEIPT MODALS -->
+<div class="modal-back" id="successModal">
+  <div class="modal">
+    <div class="success-box"><h3>✓ Sale recorded</h3><p id="successText" class="muted"></p></div>
+    <button class="btn btn-orange" id="printReceiptBtn" style="width:100%;height:52px;font-size:16px;margin-top:14px">Print receipt</button>
+    <button class="btn" id="waReceiptBtn" style="width:100%;height:48px;margin-top:8px">WhatsApp receipt</button>
+    <button class="btn-ghost btn" id="doneBtn" style="width:100%;margin-top:8px">Done</button>
+  </div>
+</div>
+<div class="modal-back" id="receiptModal">
+  <div class="modal">
+    <div id="receiptBody"></div>
+    <button class="btn btn-orange" id="receiptPrintBtn2" style="width:100%;height:48px;margin-top:12px">Print receipt</button>
+    <button class="btn-ghost btn" id="receiptClose" style="width:100%;margin-top:8px">Close</button>
+  </div>
+</div>
+<script>
+"use strict";
+/* ---------- storage ---------- */
+var KEY="yumarib-pos-v1";
+var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null;
+var CATS=[{name:"DI",label:"DI — Direct Images",color:"#0e6b3a"},{name:"Large Format",label:"Large Format",color:"#2563eb"},{name:"Borderless",label:"Borderless",color:"#475569"},{name:"UV Print",label:"UV Print",color:"#8a3324"}];
+function catColor(c){var f=CATS.filter(function(x){return x.name===c})[0];return f?f.color:"#0e6b3a"}
+function catClass(c){return c==="DI"?"cat-DI":c==="Large Format"?"cat-LargeFormat":c==="Borderless"?"cat-Borderless":"cat-UVPrint"}
+function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function fmt(n){n=Math.round(Number(n)||0);return "₦"+n.toLocaleString("en-NG")}
+function todayStr(d){d=d||new Date();var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),da=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+da}
+function dateOf(iso){return String(iso||"").slice(0,10)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function $(id){return document.getElementById(id)}
+function seedProducts(){
+  var P=[
+    ["A4 Paper","DI",80,"per 1"],["A3 Paper","DI",150,"per 1"],["A4 Solid","DI",300,"per 1"],["A3 Solid","DI",600,"per 1"],
+    ["Letterhead Special Paper","DI",20000,"per 500"],["Letterhead Normal Paper","DI",10000,"per 500"],
+    ["A4 250g","DI",150,"per 1"],["A4 250g Solid","DI",350,"per 1"],["A4 300g","DI",200,"per 1"],["A4 300g Solid","DI",400,"per 1"],
+    ["A4 350g","DI",250,"per 1"],["A4 350g Solid","DI",500,"per 1"],["A3 250g","DI",300,"per 1"],["A3 250g Solid","DI",1000,"per 1"],
+    ["A3 300g","DI",350,"per 1"],["A3 300g Solid","DI",1200,"per 1"],["Special Paper A4","DI",60,"per 1"],["Special Paper A3","DI",120,"per 1"],
+    ["Special Card A4","DI",150,"per 1"],["Special Card A3","DI",250,"per 1"],["Special Card Solid A3","DI",500,"per 1"],
+    ["A2","Borderless",1800,"per 1"],["A1","Borderless",3600,"per 1"]
+  ];
+  return P.map(function(r,i){return {id:"seed"+(i+1),name:r[0],category:r[1],price:r[2],unit:r[3],stock:null,lowAt:5}});
+}
+function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:"",paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0}}
+function load(){
+  try{var raw=localStorage.getItem(KEY);if(!raw){state=defaultState();return}
+    state=JSON.parse(raw);
+    if(!state||!Array.isArray(state.products)||!state.products.length){state=defaultState();return}
+    state.shop=state.shop||{name:"YUMARIB PRINTS",logo:"",paperWidth:80};
+    state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
+    state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
+    state.receiptSeq=state.receiptSeq||0;
+  }catch(e){state=defaultState()}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}} 
+/* ---------- pure logic (also used by tests) ---------- */
+function calcSale(items,discountType,discountValue){
+  var sub=items.reduce(function(s,it){return s+it.price*it.qty},0);
+  var disc=discountType==="percent"?sub*(Number(discountValue)||0)/100:(Number(discountValue)||0);
+  if(disc<0)disc=0;if(disc>sub)disc=sub;disc=Math.round(disc);
+  return {subtotal:sub,discount:disc,total:sub-disc};
+}
+function canCollectJob(job){return Number(job.balance||0)<=0}
+function closingDiff(expected,counted){return (Number(counted)||0)-(Number(expected)||0)}
+/* ---------- auth ---------- */
+function showSetup(){$("setupScreen").style.display="block";$("loginScreen").style.display="none";$("app").style.display="none"}
+function showLogin(){$("setupScreen").style.display="none";$("loginScreen").style.display="block";$("app").style.display="none";renderLoginUsers()}
+function showApp(){$("setupScreen").style.display="none";$("loginScreen").style.display="none";$("app").style.display="block";
+  $("headerUser").textContent=currentUser.name;$("headerRole").textContent=currentUser.role==="admin"?"ADMIN":"Staff";
+  var isAdmin=currentUser.role==="admin";
+  $("tabProducts").style.display=isAdmin?"":"none";$("tabAdmin").style.display=isAdmin?"":"none";
+  if(!isAdmin&&($("view-products").classList.contains("active")||$("view-admin").classList.contains("active")))switchTab("sell");
+  renderAll();
+}
+function renderLoginUsers(){
+  var box=$("loginUsers");box.innerHTML="";selectedLoginUser=null;$("loginPassWrap").style.display="none";
+  state.users.forEach(function(u){
+    var b=document.createElement("button");b.className="user-tile";b.type="button";
+    b.innerHTML='<span class="avatar">'+esc((u.name||u.username||"?").trim().charAt(0).toUpperCase())+'</span><span style="flex:1"><strong>'+esc(u.name)+'</strong><br><span class="muted">@'+esc(u.username)+'</span></span><span class="role-pill '+(u.role==="admin"?"admin":"")+'">'+(u.role==="admin"?"ADMIN":"STAFF")+'</span>';
+    b.onclick=function(){selectedLoginUser=u;document.querySelectorAll(".user-tile").forEach(function(x){x.classList.remove("selected")});b.classList.add("selected");$("loginSelectedName").textContent=u.name;$("loginPassWrap").style.display="block";$("loginErr").textContent="";$("loginPassword").value="";$("loginPassword").focus()};
+    box.appendChild(b);
+  });
+  if(!state.users.length)box.innerHTML='<p class="muted">No users yet.</p>';
+}
+function tryLogin(){
+  if(!selectedLoginUser){$("loginErr").textContent="Tap your name first.";return}
+  if($("loginPassword").value!==selectedLoginUser.password){$("loginErr").textContent="Wrong password. Try again.";$("loginPassword").value="";$("loginPassword").focus();return}
+  currentUser=selectedLoginUser;showApp();
+}
+$("setupBtn").onclick=function(){
+  var u=$("suUsername").value.trim(),n=$("suName").value.trim(),p=$("suPassword").value,p2=$("suPassword2").value;
+  if(!u||!n){$("setupErr").textContent="Enter a username and your name.";return}
+  if(p.length<4){$("setupErr").textContent="Password must be at least 4 characters.";return}
+  if(p!==p2){$("setupErr").textContent="Passwords do not match.";return}
+  if(state.users.some(function(x){return x.username.toLowerCase()===u.toLowerCase()})){$("setupErr").textContent="That username is already taken.";return}
+  var admin={id:uid(),username:u,name:n,password:p,role:"admin"};
+  state.users.push(admin);save();currentUser=admin;showApp();
+};
+$("loginBtn").onclick=tryLogin;
+$("loginPassword").addEventListener("keydown",function(e){if(e.key==="Enter")tryLogin()});
+$("loginBack").onclick=function(){renderLoginUsers()};
+$("logoutBtn").onclick=function(){currentUser=null;cart=[];showLogin()};
+/* ---------- tabs ---------- */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("active",t.dataset.tab===name)});
+  document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
+  $("view-"+name).classList.add("active");
+  if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell")renderSell();
+}
+document.querySelectorAll(".tab").forEach(function(t){t.onclick=function(){switchTab(t.dataset.tab)}});
+/* ---------- customers ---------- */
+function upsertCustomer(name,phone){
+  if(!name)return null;
+  var c=state.customers.filter(function(x){return x.name.toLowerCase()===name.toLowerCase()})[0];
+  if(!c){c={id:uid(),name:name,phone:phone||""};state.customers.push(c)}else if(phone)c.phone=phone;
+  return c;
+}
+function customerBalance(name){
+  var bal=0;
+  state.sales.forEach(function(s){if(!s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase())bal+=Number(s.balance||0)});
+  state.jobs.forEach(function(j){if(j.customerName&&j.customerName.toLowerCase()===name.toLowerCase())bal+=Number(j.balance||0)});
+  return bal;
+}
+/* ---------- sell ---------- */
+function renderCatPills(){
+  var counts={All:state.products.length};CATS.forEach(function(c){counts[c.name]=state.products.filter(function(p){return p.category===c.name}).length});
+  var box=$("catPills");box.innerHTML="";
+  [["All","All ("+counts.All+")"]].concat(CATS.map(function(c){return [c.name,c.label+" ("+counts[c.name]+")"]})).forEach(function(pair){
+    var b=document.createElement("button");b.className="pill"+(currentCat===pair[0]?" active":"");b.textContent=pair[1];
+    b.onclick=function(){currentCat=pair[0];renderCatPills();renderSell()};
+    box.appendChild(b);
+  });
+}
+function cartQty(pid){var it=cart.filter(function(x){return x.productId===pid})[0];return it?it.qty:0}
+function renderSell(){
+  renderCatPills();
+  var q=($("sellSearch").value||"").toLowerCase();
+  var list=state.products.filter(function(p){return (currentCat==="All"||p.category===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
+  var grid=$("productGrid");grid.innerHTML="";
+  if(!list.length)grid.innerHTML='<p class="muted">No products in this category yet. Large Format and UV Print start empty, add them as custom jobs.</p>';
+  list.forEach(function(p){
+    var b=document.createElement("button");b.className="tile "+catClass(p.category)+(cartQty(p.id)?" in-cart":"");b.type="button";
+    var stockHtml="";
+    if(p.stock===0)stockHtml='<div class="stock-warn">Out of stock</div>';
+    else if(p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt)stockHtml='<div class="stock-low">Low stock: '+p.stock+' left</div>';
+    b.innerHTML=(cartQty(p.id)?'<span class="qty-badge">'+cartQty(p.id)+'</span>':'')+'<div class="tname">'+esc(p.name)+'</div><div class="tprice">'+fmt(p.price)+'</div><div class="tunit">'+esc(p.unit||"per 1")+' · '+esc(p.category)+'</div>'+stockHtml;
+    b.onclick=function(){addToCart(p)};
+    if(p.stock===0)b.disabled=true;
+    grid.appendChild(b);
+  });
+  renderCart();
+}
+function addToCart(p){
+  if(p.stock!==null&&p.stock!==undefined&&p.stock<=0){alert("Out of stock.");return}
+  var it=cart.filter(function(x){return x.productId===p.id})[0];
+  if(it){if(p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}it.qty++}
+  else cart.push({key:uid(),productId:p.id,name:p.name,category:p.category,price:p.price,qty:1});
+  renderSell();
+}
+function renderCart(){
+  syncPaidDefaults();
+  var box=$("cartItems");box.innerHTML="";
+  $("cartEmpty").style.display=cart.length?"none":"block";
+  cart.forEach(function(it){
+    var row=document.createElement("div");row.className="cart-line";
+    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+fmt(it.price)+' each</span></div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><strong>'+it.qty+'</strong><button class="qty-btn" data-a="plus">+</button><strong style="min-width:70px;text-align:right">'+fmt(it.price*it.qty)+'</strong></div>';
+    row.querySelector('[data-a="minus"]').onclick=function(){it.qty--;if(it.qty<=0)cart=cart.filter(function(x){return x!==it});renderSell()};
+    row.querySelector('[data-a="plus"]').onclick=function(){
+      var p=state.products.filter(function(x){return x.id===it.productId})[0];
+      if(p&&p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}
+      it.qty++;renderSell()};
+    box.appendChild(row);
+  });
+  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  $("cartSubtotal").textContent=fmt(calc.subtotal);$("cartDiscount").textContent=fmt(calc.discount);$("cartTotal").textContent=fmt(calc.total);
+  var paid=Number($("amountPaid").value||0);
+  var bal=Math.max(0,calc.total-paid);
+  $("cartBalance").textContent=fmt(bal);
+  var cash=Number($("cashReceived").value||0);
+  $("cashChange").textContent=fmt(Math.max(0,cash-paid));
+  $("chargeBtn").disabled=cart.length===0||calc.total<=0;
+  $("chargeHint").textContent=bal>0?"Part payment: "+fmt(bal)+" will stay as balance on the customer. Add the customer name above.":"";
+  updateHeaderToday();
+}
+function syncPaidDefaults(){
+  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  if(!$("amountPaid").dataset.touched){$("amountPaid").value=calc.total;$("cashReceived").value=calc.total}
+}
+$("sellSearch").addEventListener("input",renderSell);
+$("discountType").addEventListener("change",function(){syncPaidDefaults();renderCart()});
+$("discountValue").addEventListener("input",function(){syncPaidDefaults();renderCart()});
+$("amountPaid").addEventListener("input",function(){$("amountPaid").dataset.touched="1";if(currentPay==="Cash"&&!$("cashReceived").dataset.touched)$("cashReceived").value=$("amountPaid").value;renderCart()});
+$("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";renderCart()});
+document.querySelectorAll("#payPills .pill").forEach(function(b){b.onclick=function(){currentPay=b.dataset.pay;document.querySelectorAll("#payPills .pill").forEach(function(x){x.classList.toggle("active",x===b)});$("cashBox").style.display=currentPay==="Cash"?"block":"none";renderCart()}});
+$("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell()};
+$("addCustomBtn").onclick=function(){
+  var name=($("customName").value||"SAV").trim(),w=$("customWidth").value,h=$("customHeight").value,price=Number($("customPrice").value||0),cat=$("customCat").value;
+  if(!w||!h){$("customErr").textContent="Enter width and height, e.g. 9 and 15.";return}
+  if(price<=0){$("customErr").textContent="Enter a price for the custom job.";return}
+  $("customErr").textContent="";
+  var label=name+" "+w+" x "+h+" inches";
+  cart.push({key:uid(),productId:null,name:label,category:cat,price:price,qty:1});
+  renderSell();
+};
+$("chargeBtn").onclick=function(){
+  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  if(!cart.length||calc.total<=0)return;
+  var paid=Number($("amountPaid").value||0),name=$("custName").value.trim(),phone=$("custPhone").value.trim();
+  if(paid<0||paid>calc.total){alert("Amount paid must be between ₦0 and the total.");return}
+  var balance=calc.total-paid;
+  if(balance>0&&!name){alert("Add the customer name above so the balance can stay on their account.");return}
+  var cashReceived=currentPay==="Cash"?Number($("cashReceived").value||0):paid;
+  if(currentPay==="Cash"&&cashReceived<paid){alert("Cash received is less than the amount paid.");return}
+  state.receiptSeq=(state.receiptSeq||0)+1;
+  var sale={id:uid(),receiptNo:"R"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
+    items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price}}),
+    subtotal:calc.subtotal,discountType:$("discountType").value,discountValue:Number($("discountValue").value||0),discount:calc.discount,total:calc.total,
+    paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":currentPay,customerName:name||"",phone:phone||"",
+    cashReceived:cashReceived,change:currentPay==="Cash"?Math.max(0,cashReceived-paid):0,voided:false};
+  state.sales.push(sale);
+  cart.forEach(function(it){if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p&&p.stock!==null&&p.stock!==undefined)p.stock=Math.max(0,p.stock-it.qty)}});
+  if(name)upsertCustomer(name,phone);
+  save();lastSaleId=sale.id;
+  cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;
+  $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("amountPaid").value="";$("cashReceived").value="";
+  $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full");
+  $("successModal").classList.add("open");
+  renderAll();
+};
+$("doneBtn").onclick=function(){$("successModal").classList.remove("open")};
+$("printReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)printReceipt(s)};
+$("waReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)sendWhatsAppReceipt(s)};
+function getSale(id){return state.sales.filter(function(s){return s.id===id})[0]}
+/* ---------- receipt ---------- */
+function receiptHtml(s){
+  var narrow=Number(state.shop.paperWidth)===58;
+  var logo=state.shop.logo?'<div style="text-align:center"><img src="'+state.shop.logo+'" style="max-width:120px;max-height:60px"></div>':"";
+  var items=s.items.map(function(it){return '<div class="rline"><span>'+esc(it.name)+' x'+it.qty+'</span><span>'+fmt(it.price*it.qty)+'</span></div><div style="color:#555">'+esc(it.category)+' · '+fmt(it.price)+' each</div>'}).join("");
+  return '<div class="receipt'+(narrow?" narrow":"")+'">'+logo+
+  '<h3>'+esc(state.shop.name||"YUMARIB PRINTS")+'</h3><div style="text-align:center">Receipt '+esc(s.receiptNo)+'</div>'+
+  '<div class="rline"><span>'+esc(new Date(s.date).toLocaleString())+'</span></div><div class="rline"><span>Cashier</span><span>'+esc(s.cashierName||s.cashier)+'</span></div>'+
+  (s.customerName?'<div class="rline"><span>Customer</span><span>'+esc(s.customerName)+'</span></div>':"")+'<hr>'+items+'<hr>'+
+  '<div class="rline"><span>Subtotal</span><span>'+fmt(s.subtotal)+'</span></div>'+
+  (s.discount?'<div class="rline"><span>Discount</span><span>-'+fmt(s.discount)+'</span></div>':"")+
+  '<div class="rline"><strong>Total</strong><strong>'+fmt(s.total)+'</strong></div>'+
+  '<div class="rline"><span>Paid</span><span>'+fmt(s.paid)+'</span></div>'+
+  '<div class="rline"><span>Balance</span><span>'+fmt(s.balance)+'</span></div>'+
+  '<div class="rline"><span>Payment</span><span>'+esc(s.payment)+'</span></div>'+
+  (s.payment==="Cash"?'<div class="rline"><span>Cash received</span><span>'+fmt(s.cashReceived)+'</span></div><div class="rline"><span>Change</span><span>'+fmt(s.change)+'</span></div>':"")+
+  (s.voided?'<div style="text-align:center"><strong>VOIDED</strong></div>':"")+
+  '<hr><div style="text-align:center">Thank you!</div></div>';
+}
+function receiptText(s){
+  var lines=[state.shop.name||"YUMARIB PRINTS","Receipt "+s.receiptNo,new Date(s.date).toLocaleString(),"Cashier: "+(s.cashierName||s.cashier)];
+  if(s.customerName)lines.push("Customer: "+s.customerName);
+  s.items.forEach(function(it){lines.push(it.name+" x"+it.qty+" - "+fmt(it.price*it.qty))});
+  lines.push("Subtotal: "+fmt(s.subtotal));if(s.discount)lines.push("Discount: -"+fmt(s.discount));
+  lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+s.payment,"Thank you!");
+  return lines.join("\n");
+}
+function printReceipt(s){
+  $("printArea").innerHTML=receiptHtml(s);
+  $("receiptBody").innerHTML=receiptHtml(s);
+  window.print();
+}
+function showReceipt(s){$("receiptBody").innerHTML=receiptHtml(s);$("receiptModal").classList.add("open");$("receiptModal").dataset.saleId=s.id}
+$("receiptClose").onclick=function(){$("receiptModal").classList.remove("open")};
+$("receiptPrintBtn2").onclick=function(){var s=getSale($("receiptModal").dataset.saleId);if(s)printReceipt(s)};
+function sendWhatsAppReceipt(s){
+  var phone=(s.phone||"").replace(/\D/g,"");
+  var url=phone?"https://wa.me/"+phone+"?text="+encodeURIComponent(receiptText(s)):"https://wa.me/?text="+encodeURIComponent(receiptText(s));
+  window.open(url,"_blank");
+}
+function updateHeaderToday(){
+  var t=todayStr();
+  var total=state.sales.filter(function(s){return dateOf(s.date)===t&&!s.voided}).reduce(function(a,s){return a+Number(s.total||0)},0);
+  $("headerToday").textContent=fmt(total);
+}
+/* ---------- dashboard ---------- */
+function salesOn(date){return state.sales.filter(function(s){return dateOf(s.date)===date&&!s.voided})}
+function renderDashboard(){
+  var d=$("dashDate").value||todayStr();$("dashDate").value=d;
+  var list=salesOn(d);
+  var grand=list.reduce(function(a,s){return a+Number(s.total||0)},0);
+  var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
+  var owed=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return dateOf(j.created)===d}).reduce(function(a,j){return a+Number(j.balance||0)},0);
+  var before=list.reduce(function(a,s){return a+Number(s.subtotal||0)},0);
+  var disc=list.reduce(function(a,s){return a+Number(s.discount||0)},0);
+  $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
+  var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
+  $("lowStockBox").innerHTML=low.length?'<div class="warn-box"><strong>Stock warning:</strong> '+low.map(function(p){return esc(p.name)+" ("+(p.stock===0?"out of stock":p.stock+" left")+")"}).join(", ")+'</div>':"";
+  var byCat={};list.forEach(function(s){s.items.forEach(function(it){byCat[it.category]=(byCat[it.category]||0)+it.price*it.qty})});
+  $("catTotals").innerHTML=Object.keys(byCat).length?Object.keys(byCat).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byCat[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
+  var byPay={};list.forEach(function(s){byPay[s.payment]=(byPay[s.payment]||0)+Number(s.paid||0)});
+  state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
+  $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
+  var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+Number(s.total||0)});
+  $("staffTotals").innerHTML=Object.keys(byStaff).length?Object.keys(byStaff).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byStaff[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
+  renderClosing(d);
+  var ts=$("todaySales");
+  ts.innerHTML=list.length?'<table><tr><th>Receipt</th><th>Time</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th></th></tr>'+list.slice().reverse().map(function(s){return '<tr><td>'+esc(s.receiptNo)+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> <button class="btn-ghost btn btn-sm" data-w="'+s.id+'">WhatsApp</button></td></tr>'}).join("")+'</table>':'<p class="muted">No sales on this date yet.</p>';
+  ts.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
+  ts.querySelectorAll("[data-w]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.w);if(s)sendWhatsAppReceipt(s)}});
+  updateHeaderToday();
+}
+function renderClosing(d){
+  var list=salesOn(d);
+  var cash=list.filter(function(s){return s.payment==="Cash"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
+  var pos=list.filter(function(s){return s.payment==="POS"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
+  var tr=list.filter(function(s){return s.payment==="Transfer"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
+  state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)});
+  var cashExp=state.expenses.filter(function(e){return dateOf(e.date)===d}).reduce(function(a,e){return a+Number(e.amount||0)},0);
+  var expected=cash-cashExp;
+  $("closingCash").textContent=fmt(cash);$("closingPos").textContent=fmt(pos);$("closingTransfer").textContent=fmt(tr);$("closingExpected").textContent=fmt(expected);
+  var counted=Number($("countedCash").value||0);
+  $("closingDiff").textContent=fmt(closingDiff(expected,counted));
+  var saved=state.closings.filter(function(c){return c.date===d})[0];
+  $("closingSaved").textContent=saved?("Saved "+new Date(saved.savedAt).toLocaleString()+" by "+saved.by+". Counted "+fmt(saved.countedCash)+", difference "+fmt(saved.difference)+"."):"";
+}
+$("dashDate").addEventListener("change",renderDashboard);
+$("countedCash").addEventListener("input",function(){renderClosing($("dashDate").value||todayStr())});
+$("saveClosingBtn").onclick=function(){
+  var d=$("dashDate").value||todayStr();
+  var expectedText=$("closingExpected").textContent.replace(/[₦,]/g,"");
+  var expected=Number(expectedText)||0;var counted=Number($("countedCash").value||0);
+  var rec={date:d,countedCash:counted,expectedCash:expected,difference:closingDiff(expected,counted),savedAt:new Date().toISOString(),by:currentUser.name};
+  var i=state.closings.findIndex(function(c){return c.date===d});if(i>=0)state.closings[i]=rec;else state.closings.push(rec);
+  save();renderClosing(d);renderAdmin();
+};
+/* ---------- jobs ---------- */
+function renderJobs(){
+  var box=$("jobsList");
+  if(!state.jobs.length){box.innerHTML='<p class="muted">No jobs yet.</p>';return}
+  box.innerHTML='<table><tr><th>Customer</th><th>Job</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr>'+
+  state.jobs.slice().reverse().map(function(j){
+    var can=canCollectJob(j);
+    return '<tr><td>'+esc(j.customerName)+'<br><span class="muted">'+esc(j.phone||"")+'</span></td><td>'+esc(j.description)+'</td><td>'+fmt(j.total)+'</td><td>'+fmt(j.paid)+'</td><td>'+fmt(j.balance)+'</td><td><span class="status st-'+j.status.replace(" ","")+'">'+esc(j.status)+'</span></td><td>'+
+    '<select data-status="'+j.id+'" style="width:auto"><option'+(j.status==="Pending"?" selected":"")+'>Pending</option><option'+(j.status==="In Production"?" selected":"")+'>In Production</option><option'+(j.status==="Ready"?" selected":"")+'>Ready</option><option'+(j.status==="Collected"?" selected":"")+'>Collected</option></select> '+
+    '<input type="number" min="0" placeholder="Pay ₦" data-payamt="'+j.id+'" style="width:110px"> '+
+    '<select data-paymethod="'+j.id+'" style="width:auto"><option>Cash</option><option>POS</option><option>Transfer</option></select> '+
+    '<button class="btn btn-sm" data-paybtn="'+j.id+'">Record payment</button>'+
+    (j.status!=="Collected"?'<button class="btn btn-sm" data-collect="'+j.id+'" '+(can?"":"disabled title=\"Balance must be ₦0 before collecting\"")+'>Collect</button>':"")+
+    (!can?'<div class="muted">Cannot collect: balance '+fmt(j.balance)+' outstanding.</div>':"")+
+    '</td></tr>'}).join("")+'</table>';
+  box.querySelectorAll("[data-status]").forEach(function(sel){sel.onchange=function(){
+    var j=state.jobs.filter(function(x){return x.id===sel.dataset.status})[0];if(!j)return;
+    if(sel.value==="Collected"&&!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding. Record a payment first.");sel.value=j.status;return}
+    j.status=sel.value;j.updated=new Date().toISOString();save();renderJobs();
+  }});
+  box.querySelectorAll("[data-paybtn]").forEach(function(b){b.onclick=function(){
+    var j=state.jobs.filter(function(x){return x.id===b.dataset.paybtn})[0];if(!j)return;
+    var amt=Number(box.querySelector('[data-payamt="'+j.id+'"]').value||0);
+    var method=box.querySelector('[data-paymethod="'+j.id+'"]').value;
+    if(amt<=0){alert("Enter an amount to record.");return}
+    if(amt>j.balance){alert("Amount is more than the balance of "+fmt(j.balance)+".");return}
+    j.paid+=amt;j.balance-=amt;j.updated=new Date().toISOString();
+    state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
+    save();renderJobs();renderDashboard();
+  }});
+  box.querySelectorAll("[data-collect]").forEach(function(b){b.onclick=function(){
+    var j=state.jobs.filter(function(x){return x.id===b.dataset.collect})[0];if(!j)return;
+    if(!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding.");return}
+    j.status="Collected";j.updated=new Date().toISOString();save();renderJobs();
+  }});
+}
+$("addJobBtn").onclick=function(){
+  var name=$("jobName").value.trim(),phone=$("jobPhone").value.trim(),desc=$("jobDesc").value.trim(),total=Number($("jobTotal").value||0),dep=Number($("jobDeposit").value||0);
+  if(!name){$("jobErr").textContent="Enter the customer name.";return}
+  if(total<=0){$("jobErr").textContent="Enter a total price above ₦0.";return}
+  if(dep<0||dep>total){$("jobErr").textContent="Deposit must be between ₦0 and the total.";return}
+  $("jobErr").textContent="";
+  state.jobs.push({id:uid(),customerName:name,phone:phone,description:desc||"Job",total:total,deposit:dep,paid:dep,balance:total-dep,status:"Pending",created:new Date().toISOString(),updated:new Date().toISOString()});
+  upsertCustomer(name,phone);save();
+  $("jobName").value="";$("jobPhone").value="";$("jobDesc").value="";$("jobTotal").value="";$("jobDeposit").value=0;
+  renderJobs();
+};
+/* ---------- products ---------- */
+function renderProducts(){
+  var q=($("prodSearch").value||"").toLowerCase();
+  var list=state.products.filter(function(p){return !q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)});
+  $("prodList").innerHTML=list.length?'<table><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>'+list.map(function(p){
+    return '<tr><td>'+esc(p.name)+'<br><span class="muted">'+esc(p.unit||"per 1")+'</span></td><td>'+esc(p.category)+'</td><td>'+fmt(p.price)+'</td><td>'+(p.stock===null||p.stock===undefined?"Not tracked":p.stock+(p.stock===0?' <span class="stock-warn">Out of stock</span>':p.stock<=p.lowAt?' <span class="stock-low">Low</span>':""))+'</td><td><button class="btn-ghost btn btn-sm" data-edit="'+p.id+'">Edit</button> <button class="btn-danger btn btn-sm" data-del="'+p.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No products match.</p>';
+  $("prodList").querySelectorAll("[data-del]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this product?"))return;state.products=state.products.filter(function(p){return p.id!==b.dataset.del});save();renderProducts();renderSell()}});
+  $("prodList").querySelectorAll("[data-edit]").forEach(function(b){b.onclick=function(){
+    var p=state.products.filter(function(x){return x.id===b.dataset.edit})[0];if(!p)return;
+    var name=prompt("Product name",p.name);if(name===null)return;
+    var price=Number(prompt("Price (₦)",p.price));if(isNaN(price)||price<0)return;
+    var stockRaw=prompt("Stock (blank = not tracked)",p.stock===null||p.stock===undefined?"":p.stock);if(stockRaw===null)return;
+    p.name=name.trim()||p.name;p.price=price;p.stock=stockRaw===""?null:Math.max(0,Number(stockRaw)||0);
+    save();renderProducts();renderSell();
+  }});
+}
+$("prodSearch").addEventListener("input",renderProducts);
+$("addProdBtn").onclick=function(){
+  var name=$("prodName").value.trim(),cat=$("prodCat").value,price=Number($("prodPrice").value||0),unit=$("prodUnit").value.trim()||"per 1",stockRaw=$("prodStock").value;
+  if(!name){$("prodErr").textContent="Enter a product name.";return}
+  if(price<0){$("prodErr").textContent="Price cannot be negative.";return}
+  $("prodErr").textContent="";
+  state.products.push({id:uid(),name:name,category:cat,price:price,unit:unit,stock:stockRaw===""?null:Math.max(0,Number(stockRaw)||0),lowAt:5});
+  save();$("prodName").value="";$("prodPrice").value="";$("prodUnit").value="";$("prodStock").value="";renderProducts();renderSell();
+};
+/* ---------- admin ---------- */
+function switchAdmin(sec){
+  document.querySelectorAll("#adminPills .pill").forEach(function(p){p.classList.toggle("active",p.dataset.admin===sec)});
+  document.querySelectorAll(".admin-sec").forEach(function(s){s.style.display="none"});
+  $("admin-"+sec).style.display="block";
+  if(sec==="sales")renderAdminSales();if(sec==="expenses")renderExpenses();if(sec==="reports")renderReport();if(sec==="price")renderPriceChecker();if(sec==="customers")renderCustomers();if(sec==="users")renderUsers();if(sec==="shop")renderShop();
+}
+document.querySelectorAll("#adminPills .pill").forEach(function(p){p.onclick=function(){switchAdmin(p.dataset.admin)}});
+function renderAdmin(){renderAdminSales();renderExpenses();renderCustomers();renderUsers();renderShop();
+  $("closingList").innerHTML=state.closings.length?state.closings.slice().reverse().map(function(c){return '<div class="tot-row"><span>'+esc(c.date)+'</span><strong>Counted '+fmt(c.countedCash)+' · Diff '+fmt(c.difference)+'</strong></div>'}).join(""):'<p class="muted">No closings saved yet.</p>';
+  var net=state.sales.filter(function(s){return !s.voided}).reduce(function(a,s){return a+Number(s.total||0)},0)-state.expenses.reduce(function(a,e){return a+Number(e.amount||0)},0);
+  $("netTotal").textContent=fmt(net);
+}
+function saleRow(s){
+  return '<tr><td>'+esc(s.receiptNo)+(s.voided?' <span class="stock-warn">VOIDED</span>':"")+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td>'+esc(s.payment)+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> '+(s.voided?"":'<button class="btn-danger btn btn-sm" data-v="'+s.id+'">Void</button>')+'</td></tr>';
+}
+function bindSaleRows(box){
+  box.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
+  box.querySelectorAll("[data-v]").forEach(function(b){b.onclick=function(){if(!confirm("Void this sale? It will not count in totals."))return;var s=getSale(b.dataset.v);if(s){s.voided=true;save();renderAdminSales();renderDashboard()}}});
+}
+function renderAdminSales(){
+  var d=$("adminSalesDate").value||todayStr();$("adminSalesDate").value=d;
+  var list=state.sales.filter(function(s){return dateOf(s.date)===d});
+  $("adminSalesList").innerHTML=list.length?'<table><tr><th>Receipt</th><th>Time</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th>Pay</th><th></th></tr>'+list.slice().reverse().map(saleRow).join("")+'</table>':'<p class="muted">No sales on this date.</p>';
+  bindSaleRows($("adminSalesList"));
+}
+$("adminSalesDate").addEventListener("change",renderAdminSales);
+function renderExpenses(){
+  var list=state.expenses.slice().reverse();
+  $("expList").innerHTML=list.length?'<table><tr><th>Date</th><th>What</th><th>Amount</th><th></th></tr>'+list.map(function(e){return '<tr><td>'+esc(dateOf(e.date))+'</td><td>'+esc(e.title)+'</td><td>'+fmt(e.amount)+'</td><td><button class="btn-danger btn btn-sm" data-e="'+e.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No expenses yet.</p>';
+  $("expList").querySelectorAll("[data-e]").forEach(function(b){b.onclick=function(){state.expenses=state.expenses.filter(function(e){return e.id!==b.dataset.e});save();renderExpenses();renderAdmin()}});
+  var net=state.sales.filter(function(s){return !s.voided}).reduce(function(a,s){return a+Number(s.total||0)},0)-state.expenses.reduce(function(a,e){return a+Number(e.amount||0)},0);
+  $("netTotal").textContent=fmt(net);
+}
+$("addExpBtn").onclick=function(){
+  var t=$("expTitle").value.trim(),a=Number($("expAmount").value||0),d=$("expDate").value||todayStr();
+  if(!t||a<=0){$("expErr").textContent="Enter what it was for and an amount above ₦0.";return}
+  $("expErr").textContent="";state.expenses.push({id:uid(),title:t,amount:a,date:d+"T12:00:00"});save();$("expTitle").value="";$("expAmount").value="";renderExpenses();renderAdmin();
+};
+function renderReport(){
+  var from=$("repFrom").value||todayStr(),to=$("repTo").value||todayStr();
+  $("repFrom").value=from;$("repTo").value=to;
+  var list=state.sales.filter(function(s){return !s.voided&&dateOf(s.date)>=from&&dateOf(s.date)<=to});
+  var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
+  var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
+  $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Grand total</span><strong>'+fmt(total)+'</strong></div><div class="tot-row"><span>Collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
+  var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=it.price*it.qty})});
+  var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
+  $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
+  return {from:from,to:to,list:list,total:total};
+}
+$("repRun").onclick=renderReport;
+$("exportCsvBtn").onclick=function(){
+  var r=renderReport();
+  var rows=[["Receipt","Date","Cashier","Customer","Item","Qty","Unit price","Line total","Total","Paid","Balance","Payment"]];
+  r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,it.price*it.qty,s.total,s.paid,s.balance,s.payment])})});
+  var csv=rows.map(function(row){return row.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
+  var blob=new Blob([csv],{type:"text/csv"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="yumarib-report-"+r.from+"-to-"+r.to+".csv";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+};
+$("printReportBtn").onclick=function(){
+  var r=renderReport();
+  $("printArea").innerHTML='<div class="receipt" style="width:100%;max-width:700px"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Report</h3><p>'+esc(r.from)+' to '+esc(r.to)+'</p><p>Sales: '+r.list.length+' · Grand total: '+fmt(r.total)+'</p><p>Use your browser Print dialog and choose Save as PDF.</p></div>';
+  window.print();
+};
+function renderPriceChecker(){
+  var q=($("priceSearch").value||"").toLowerCase();
+  var box=$("priceResult");
+  if(!q){box.innerHTML='<p class="muted">Type a product name to see its price.</p>';return}
+  var list=state.products.filter(function(p){return p.name.toLowerCase().includes(q)});
+  box.innerHTML=list.length?list.map(function(p){return '<div class="tot-row" style="font-size:17px"><span>'+esc(p.name)+' <span class="muted">('+esc(p.category)+', '+esc(p.unit||"per 1")+')</span></span><strong>'+fmt(p.price)+'</strong></div>'}).join(""):'<p class="muted">No product matches that name.</p>';
+}
+$("priceSearch").addEventListener("input",renderPriceChecker);
+function renderCustomers(){
+  var onlyOwed=$("custFilterOwed").checked;
+  var names={};
+  state.sales.forEach(function(s){if(s.customerName)names[s.customerName]=names[s.customerName]||{name:s.customerName,phone:s.phone||""}});
+  state.jobs.forEach(function(j){if(j.customerName)names[j.customerName]=names[j.customerName]||{name:j.customerName,phone:j.phone||""}});
+  state.customers.forEach(function(c){names[c.name]=names[c.name]||{name:c.name,phone:c.phone||""}});
+  var list=Object.keys(names).map(function(k){var n=names[k];n.balance=customerBalance(n.name);return n});
+  if(onlyOwed)list=list.filter(function(c){return c.balance>0});
+  $("custList").innerHTML=list.length?'<table><tr><th>Customer</th><th>Phone</th><th>Balance owed</th><th>Record payment</th></tr>'+list.map(function(c){
+    return '<tr><td>'+esc(c.name)+'</td><td>'+esc(c.phone||"—")+'</td><td><strong>'+fmt(c.balance)+'</strong></td><td><input type="number" min="0" placeholder="Pay ₦" data-cpay="'+esc(c.name)+'" style="width:110px"> <select data-cmethod="'+esc(c.name)+'" style="width:auto"><option>Cash</option><option>POS</option><option>Transfer</option></select> <button class="btn btn-sm" data-cbtn="'+esc(c.name)+'">Record payment</button></td></tr>'}).join("")+'</table>':'<p class="muted">No customers yet.</p>';
+  $("custList").querySelectorAll("[data-cbtn]").forEach(function(b){b.onclick=function(){
+    var name=b.dataset.cbtn;var amt=Number($("custList").querySelector('[data-cpay="'+CSS.escape(name)+'"]').value||0);
+    var method=$("custList").querySelector('[data-cmethod="'+CSS.escape(name)+'"]').value;
+    if(amt<=0){alert("Enter an amount.");return}
+    var bal=customerBalance(name);if(amt>bal){alert("Amount is more than the balance of "+fmt(bal)+".");return}
+    var remaining=amt;
+    var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
+    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));s.paid+=take;s.balance-=take;remaining-=take});
+    state.jobs.filter(function(j){return j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;remaining-=take});
+    state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name});
+    save();renderCustomers();renderDashboard();
+  }});
+}
+$("custFilterOwed").addEventListener("change",renderCustomers);
+function renderUsers(){
+  $("userList").innerHTML='<table><tr><th>Name</th><th>Username</th><th>Role</th><th></th></tr>'+state.users.map(function(u){return '<tr><td>'+esc(u.name)+'</td><td>@'+esc(u.username)+'</td><td>'+esc(u.role)+'</td><td>'+(state.users.length>1&&u.id!==currentUser.id?'<button class="btn-danger btn btn-sm" data-u="'+u.id+'">Delete</button>':"")+'</td></tr>'}).join("")+'</table>';
+  $("userList").querySelectorAll("[data-u]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this user?"))return;state.users=state.users.filter(function(u){return u.id!==b.dataset.u});save();renderUsers()}});
+}
+$("addUserBtn").onclick=function(){
+  var u=$("newUsername").value.trim(),n=$("newName").value.trim(),p=$("newPassword").value,r=$("newRole").value;
+  if(!u||!n){$("userErr").textContent="Enter a username and name.";return}
+  if(p.length<4){$("userErr").textContent="Password must be at least 4 characters.";return}
+  if(state.users.some(function(x){return x.username.toLowerCase()===u.toLowerCase()})){$("userErr").textContent="That username is already taken.";return}
+  $("userErr").textContent="";state.users.push({id:uid(),username:u,name:n,password:p,role:r});save();$("newUsername").value="";$("newName").value="";$("newPassword").value="";renderUsers();renderLoginUsers();
+};
+function renderShop(){
+  $("shopNameInput").value=state.shop.name||"YUMARIB PRINTS";
+  if(Number(state.shop.paperWidth)===58)$("paper58").checked=true;else $("paper80").checked=true;
+  if(state.shop.logo){$("logoPreview").src=state.shop.logo;$("logoPreview").style.display="block"}else $("logoPreview").style.display="none";
+}
+$("logoInput").addEventListener("change",function(){
+  var f=$("logoInput").files[0];if(!f)return;
+  var reader=new FileReader();reader.onload=function(){state.shop.logo=reader.result;save();renderShop()};reader.readAsDataURL(f);
+});
+$("saveShopBtn").onclick=function(){
+  state.shop.name=$("shopNameInput").value.trim()||"YUMARIB PRINTS";
+  state.shop.paperWidth=document.querySelector('input[name="paper"]:checked').value==="58"?58:80;
+  save();$("shopSaved").textContent="Shop settings saved.";renderShop();
+};
+/* ---------- init ---------- */
+function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin();updateHeaderToday()}
+load();
+if(!state.users.length)showSetup();else showLogin();
+syncPaidDefaults();
+</script>
+</body>
+</html>
