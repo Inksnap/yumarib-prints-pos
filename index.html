@@ -15,8 +15,8 @@
 /* Yumarib Prints POS - Pziel fonts: body Rubik, headings Nunito Sans.
    Accent is ORANGE (#f07a1a / #e86a17), not green. Default theme DARK as approved;
    LIGHT theme via [data-theme="light"]. Advanced boxes: gradients, shadows, lift on hover. */
-:root{--bg:#0b0e0c;--surface:#17231c;--surface2:#1e2a22;--surface3:#0a0e0b;--input-bg:#1a2420;--text:#f5f7f5;--dim:#9aa5a0;--border:#2a352e;--border2:#26332b;--accent:#f07a1a;--accent2:#e86a17;--accent-ink:#1a1005;--radius:14px;--blue:#4a8cff;--slate:#8a97a0;--redbrown:#d97a5a;--shadow:0 10px 28px rgba(0,0,0,.45);--shadow-sm:0 4px 14px rgba(0,0,0,.35)}
-[data-theme="light"]{--bg:#fdf9f2;--surface:#ffffff;--surface2:#fff3e6;--surface3:#f6efe4;--input-bg:#ffffff;--text:#211a12;--dim:#6f6455;--border:#ecdcc8;--border2:#e3d5c2;--shadow:0 10px 28px rgba(180,120,40,.16);--shadow-sm:0 4px 14px rgba(180,120,40,.12)}
+:root{--bg:#0b0e0c;--surface:#17231c;--surface2:#1e2a22;--surface3:#0a0e0b;--input-bg:#1a2420;--text:#f5f7f5;--dim:#9aa5a0;--border:#2a352e;--border2:#26332b;--accent:#f07a1a;--accent2:#e86a17;--accent-ink:#1a1005;--radius:14px;--blue:#4a8cff;--slate:#8a97a0;--redbrown:#d97a5a;--warn-red:#ff6b5e;--warn-amber:#f5c542;--shadow:0 10px 28px rgba(0,0,0,.45);--shadow-sm:0 4px 14px rgba(0,0,0,.35)}
+[data-theme="light"]{--bg:#fdf9f2;--surface:#ffffff;--surface2:#fff3e6;--surface3:#f6efe4;--input-bg:#ffffff;--text:#211a12;--dim:#6f6455;--border:#ecdcc8;--border2:#e3d5c2;--warn-red:#b3261e;--warn-amber:#7a5c00;--shadow:0 10px 28px rgba(180,120,40,.16);--shadow-sm:0 4px 14px rgba(180,120,40,.12)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:"Rubik",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45}
 h1,h2,h3,.font-display{font-family:"Nunito Sans","Rubik",system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -56,11 +56,11 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .tile:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
 .tile.in-cart{border:1px solid var(--accent);border-top:5px solid var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-sm)}
 .tile .tname{font-weight:700;font-size:14px}
-.tile .tprice{font-weight:800;color:#fff;margin-top:4px;font-size:18px}
+.tile .tprice{font-weight:800;color:var(--text);margin-top:4px;font-size:18px}
 .tile .tunit{color:var(--dim);font-size:12px}
 .qty-badge{position:absolute;top:8px;right:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:999px;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 6px}
-.stock-warn{font-size:12px;font-weight:700;color:#ff6b5e}
-.stock-low{font-size:12px;font-weight:700;color:#f5c542}
+.stock-warn{font-size:12px;font-weight:700;color:var(--warn-red)}
+.stock-low{font-size:12px;font-weight:700;color:var(--warn-amber)}
 .cat-DI{border-top-color:#f07a1a}.cat-LargeFormat{border-top-color:#4a8cff}.cat-Borderless{border-top-color:#8a97a0}.cat-UVPrint{border-top-color:#d97a5a}
 .cart-panel{position:sticky;top:76px}
 .cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)}
@@ -81,6 +81,13 @@ th,td{text-align:left;padding:8px;border-bottom:1px solid var(--border2);vertica
 th{color:var(--dim);font-size:12px;text-transform:uppercase}
 .status{border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;display:inline-block}
 .st-Pending{background:#3a2f10;color:#f5c542}.st-InProduction{background:#12294a;color:#7db4ff}.st-Ready{background:#0f2e1c;color:#5ed693}.st-Collected{background:#26332b;color:#c8d2cc}
+/* Light mode: status / role / warning chips must be light chips with dark text, never light text on a dark chip that clashes with the white page. */
+[data-theme="light"] .st-Pending{background:#fff3d6;color:#7a5c00}
+[data-theme="light"] .st-InProduction{background:#dbeafe;color:#1d4ed8}
+[data-theme="light"] .st-Ready{background:#dcfce7;color:#166534}
+[data-theme="light"] .st-Collected{background:#e7e5e4;color:#44403c}
+[data-theme="light"] .role-pill{background:#efe9df;color:#211a12}
+[data-theme="light"] .warn-box{background:#fff3d6;border-color:#e0b84f;color:#5c4300}
 .auth-wrap{max-width:520px;margin:60px auto;padding:0 16px}
 .user-tile{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;margin-bottom:10px;color:var(--text);box-shadow:var(--shadow-sm)}
 .user-tile.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -92,22 +99,40 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase}
 .modal{background:var(--surface);border:1px solid var(--border2);box-shadow:var(--shadow);border-radius:var(--radius);max-width:480px;width:100%;padding:20px;max-height:92vh;overflow:auto;color:var(--text)}
 .success-box{background:var(--surface2);border:1px solid var(--accent);border-radius:var(--radius);padding:14px;text-align:center}
 .success-box h3{color:var(--accent);margin:0 0 6px}
-.receipt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#000;background:#fff}
+/* Receipt: always black on white (screen and print), so it reads the same in dark and light mode. */
+.receipt{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#111;background:#fff;padding:16px 14px;border-radius:8px;max-width:340px;margin:0 auto;box-shadow:0 4px 18px rgba(0,0,0,.18)}
 .receipt h3,.receipt h4{margin:4px 0;text-align:center}
-.receipt .rline{display:flex;justify-content:space-between}
-.receipt hr{border:0;border-top:1px dashed #000;margin:6px 0}
+.receipt .rline{display:flex;justify-content:space-between;gap:8px}
+.receipt hr{border:0;border-top:1px dashed #111;margin:8px 0}
+.receipt .r-shop{text-align:center;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:8px}
+.receipt .r-shop-name{font-family:"Nunito Sans","Rubik",sans-serif;font-size:18px;font-weight:900;letter-spacing:1px;color:#111}
+.receipt .r-shop-no{font-size:12px;font-weight:700;letter-spacing:1px;color:#333;margin-top:2px}
+.receipt .r-meta{font-size:11px;color:#333}
+.receipt .r-meta .rline{padding:1px 0}
+.receipt .r-items{margin:6px 0}
+.receipt .r-item{padding:5px 0;border-bottom:1px dotted #bbb}
+.receipt .r-item:last-child{border-bottom:0}
+.receipt .r-item-name{font-weight:700;color:#111}
+.receipt .r-item-sub{font-size:11px;color:#555}
+.receipt .r-totals{border-top:1px dashed #111;margin-top:6px;padding-top:8px}
+.receipt .r-totals .rline{padding:2px 0}
+.receipt .r-total-row{font-size:15px;font-weight:900;color:#111;border-top:2px solid #111;border-bottom:2px solid #111;margin:6px 0;padding:6px 0}
+.receipt .r-balance{font-weight:700;color:#b3261e}
+.receipt .r-void{text-align:center;font-weight:900;font-size:16px;letter-spacing:2px;color:#b3261e;border:2px solid #b3261e;border-radius:6px;padding:4px;margin:8px 0}
+.receipt .r-thanks{text-align:center;font-weight:700;color:#111;margin-top:10px}
+.receipt .r-thanks-sub{text-align:center;font-size:11px;color:#555}
 #printArea{display:none}
 @media print{
   body{background:#fff}
   body *{visibility:hidden}
   #printArea,#printArea *{visibility:visible}
   #printArea{display:block;position:absolute;left:0;top:0;width:100%}
-  #printArea .receipt{width:72mm;margin:0 auto}
+  #printArea .receipt{width:72mm;margin:0 auto;box-shadow:none;border-radius:0;padding:0}
   #printArea .receipt.narrow{width:50mm}
   @page{margin:0}
 }
 .warn-box{background:#3a2f10;border:1px solid #8a6d2a;border-radius:var(--radius);padding:12px;color:#f5e6b8}
-.err{color:#ff6b5e;font-weight:700}
+.err{color:var(--warn-red);font-weight:700}
 .ok{color:var(--accent);font-weight:700}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:600px){.form-row{grid-template-columns:1fr}}
@@ -669,28 +694,36 @@ function getSale(id){return state.sales.filter(function(s){return s.id===id})[0]
 /* ---------- receipt ---------- */
 function receiptHtml(s){
   var narrow=Number(state.shop.paperWidth)===58;
-  var logo=state.shop.logo?'<div style="text-align:center"><img src="'+state.shop.logo+'" style="max-width:120px;max-height:60px"></div>':"";
-  var items=s.items.map(function(it){return '<div class="rline"><span>'+esc(it.name)+' x'+it.qty+'</span><span>'+fmt(it.price*it.qty)+'</span></div><div style="color:#555">'+esc(it.category)+' · '+fmt(it.price)+' each</div>'}).join("");
+  var d=new Date(s.date);
+  var logo=state.shop.logo?'<div style="text-align:center;margin-bottom:6px"><img src="'+state.shop.logo+'" style="max-width:120px;max-height:60px" alt="Shop logo"></div>':"";
+  var items=s.items.map(function(it){return '<div class="r-item"><div class="rline"><span class="r-item-name">'+esc(it.name)+' &times; '+it.qty+'</span><span><strong>'+fmt(it.price*it.qty)+'</strong></span></div><div class="r-item-sub">'+esc(it.category)+' &middot; '+fmt(it.price)+' each</div></div>'}).join("");
   return '<div class="receipt'+(narrow?" narrow":"")+'">'+logo+
-  '<h3>'+esc(state.shop.name||"YUMARIB PRINTS")+'</h3><div style="text-align:center">Receipt '+esc(s.receiptNo)+'</div>'+
-  '<div class="rline"><span>'+esc(new Date(s.date).toLocaleString())+'</span></div><div class="rline"><span>Cashier</span><span>'+esc(s.cashierName||s.cashier)+'</span></div>'+
-  (s.customerName?'<div class="rline"><span>Customer</span><span>'+esc(s.customerName)+'</span></div>':"")+'<hr>'+items+'<hr>'+
+  '<div class="r-shop"><div class="r-shop-name">'+esc(state.shop.name||"YUMARIB PRINTS")+'</div><div class="r-shop-no">Receipt '+esc(s.receiptNo)+'</div></div>'+
+  '<div class="r-meta">'+
+  '<div class="rline"><span>Date</span><span>'+esc(d.toLocaleDateString())+'</span></div>'+
+  '<div class="rline"><span>Time</span><span>'+esc(d.toLocaleTimeString())+'</span></div>'+
+  '<div class="rline"><span>Cashier</span><span>'+esc(s.cashierName||s.cashier)+'</span></div>'+
+  (s.customerName?'<div class="rline"><span>Customer</span><span>'+esc(s.customerName)+'</span></div>':"")+
+  (s.phone?'<div class="rline"><span>Phone</span><span>'+esc(s.phone)+'</span></div>':"")+
+  '</div><hr><div class="r-items">'+items+'</div>'+
+  '<div class="r-totals">'+
   '<div class="rline"><span>Subtotal</span><span>'+fmt(s.subtotal)+'</span></div>'+
   (s.discount?'<div class="rline"><span>Discount</span><span>-'+fmt(s.discount)+'</span></div>':"")+
-  '<div class="rline"><strong>Total</strong><strong>'+fmt(s.total)+'</strong></div>'+
+  '<div class="rline r-total-row"><span>Total</span><span>'+fmt(s.total)+'</span></div>'+
   '<div class="rline"><span>Paid</span><span>'+fmt(s.paid)+'</span></div>'+
-  '<div class="rline"><span>Balance</span><span>'+fmt(s.balance)+'</span></div>'+
+  '<div class="rline"><span>Balance</span><span class="'+(s.balance>0?"r-balance":"")+'">'+fmt(s.balance)+'</span></div>'+
   '<div class="rline"><span>Payment</span><span>'+esc(s.payment)+'</span></div>'+
   (s.payment==="Cash"?'<div class="rline"><span>Cash received</span><span>'+fmt(s.cashReceived)+'</span></div><div class="rline"><span>Change</span><span>'+fmt(s.change)+'</span></div>':"")+
-  (s.voided?'<div style="text-align:center"><strong>VOIDED</strong></div>':"")+
-  '<hr><div style="text-align:center">Thank you!</div></div>';
+  '</div>'+
+  (s.voided?'<div class="r-void">VOIDED</div>':"")+
+  '<div class="r-thanks">Thank you!</div><div class="r-thanks-sub">Please come again</div></div>';
 }
 function receiptText(s){
   var lines=[state.shop.name||"YUMARIB PRINTS","Receipt "+s.receiptNo,new Date(s.date).toLocaleString(),"Cashier: "+(s.cashierName||s.cashier)];
   if(s.customerName)lines.push("Customer: "+s.customerName);
   s.items.forEach(function(it){lines.push(it.name+" x"+it.qty+" - "+fmt(it.price*it.qty))});
   lines.push("Subtotal: "+fmt(s.subtotal));if(s.discount)lines.push("Discount: -"+fmt(s.discount));
-  lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+s.payment,"Thank you!");
+  lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+s.payment,"Thank you! Please come again");
   return lines.join("\n");
 }
 function printReceipt(s){
