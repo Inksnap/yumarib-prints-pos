@@ -39,3 +39,6 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 ## Backup
 
 There is no automatic backup in this static version. To keep a copy of the data, use Reports → Export CSV regularly, and do not clear the browser's site data for the POS page.
+
+## Receipt logo (2026-11-13)
+Website shows the colour PNG logo. Receipt shows logo-grey.png, the same logo converted to greyscale with its black background kept, so the white YP and PRINTS stay visible on white paper and on the Xprinter. The old pure black-and-white transparent logo made the white parts invisible on white, which is why the logo did not show on the receipt.
