@@ -1,6 +1,6 @@
 # Yumarib Prints POS (static, GitHub Pages)
 
-A complete single-page POS for Yumarib Prints. One file: `index.html` (all CSS and JavaScript inline, no build step, no external dependencies, no Google Fonts — system fonts only, so it works offline once loaded).
+A complete single-page POS for Yumarib Prints. One file: `index.html` (all CSS and JavaScript inline, no build step, no external dependencies, no Google Fonts — system fonts only, so it works offline once loaded). Dark theme as approved: near-black background, dark green-black cards, white text, green primary, orange Charge / View sale button.
 
 ## How to publish
 
