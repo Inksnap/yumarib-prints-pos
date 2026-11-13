@@ -33,6 +33,7 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 - Dashboard: Grand total, Sales, Collected so far, Still owed, Before discount, Discounts given; Totals by category, Money by payment, Sales by staff; Daily cash closing (Cash/POS/Transfer received, expected cash, counted cash, difference); Today's sales with Reprint / WhatsApp; low-stock warnings.
 - Jobs: customer, total, deposit, statuses Pending / In Production / Ready / Collected. A job cannot be Collected while a balance is outstanding; record further payments against it.
 - Products (admin only): add / edit / delete, stock counts. Stock starts untracked until an admin sets it, then counts down on sale. Low stock (5 or fewer) and out of stock warnings show on Sell and Dashboard.
+- Logo: transparent PNG, no background. Black monochrome logo on the receipt (prints black on white on the Xprinter XP-80T), colour logo in dark mode, black logo in light mode. No "YUMARIB PRINTS" text next to the logo, the logo itself says it.
 - Admin: Sales (any date, void, reprint), Expenses (net after expenses), Reports (date range, top products, Export CSV for Excel, Print / Save as PDF), Price checker, Customers (balance owed, Who owes us filter, record payment), Users (admin creates users), Shop (shop name, logo upload stored in localStorage, receipt paper width 80mm / 58mm).
 
 ## Backup
