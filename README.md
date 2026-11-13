@@ -1,6 +1,6 @@
 # Yumarib Prints POS (static, GitHub Pages)
 
-A complete single-page POS for Yumarib Prints. One file: `index.html` (all CSS and JavaScript inline, no build step, no external dependencies, no Google Fonts — system fonts only, so it works offline once loaded). Dark theme as approved: near-black background, dark green-black cards, white text, green primary, orange Charge / View sale button.
+A complete single-page POS for Yumarib Prints. One file: `index.html` (all CSS and JavaScript inline, plus `manifest.json`, `sw.js` and `icon.svg` for desktop install). Fonts are Pziel's: body Rubik, headings Nunito Sans (Google Fonts, with system fallbacks). Dark theme is the default as approved: near-black background, dark cards, white text. Light mode is a clean white theme, switched with the Light / Dark button in the header and on the login/setup screens, saved in localStorage. The primary accent is orange (#f07a1a / #e86a17), not green: Sell tab, buttons, tile top borders and active states are orange, with gradients, shadows and hover lift on the boxes.
 
 ## How to publish
 
