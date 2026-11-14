@@ -44,9 +44,16 @@ There is no automatic backup in this static version. To keep a copy of the data,
 Website shows the colour PNG logo. Receipt shows logo-grey.png, the same logo converted to greyscale with its black background kept, so the white YP and PRINTS stay visible on white paper and on the Xprinter. The old pure black-and-white transparent logo made the white parts invisible on white, which is why the logo did not show on the receipt.
 
 ## Sell groups and totals by category (2026-11-14)
-DI is split in the Sell screen only, so staff do not have to hunt paper and card under one DI pile. Paper A4: A4 Paper, A4 Solid, Special Paper A4, Letterhead Special, Letterhead Normal. Paper A3: A3 Paper, A3 Solid, Special Paper A3. Card A4 250g / 300g / 350g and Card A3 250g / 300g, each with its Solid version. Special Card: Special Card A4, A3, Solid A3. Products still keep category DI in Admin / Products, and all prices are unchanged. Dashboard and Reports totals by category now list every group, even ₦0, plus Jobs created in that period, and a Categories total (before discount) so the rows add up. Old sales stored as DI are split by the same mapping when totals are shown.
+DI is split in the Sell screen only, so staff do not have to hunt paper and card under one DI pile. Paper A4: A4 Paper, A4 Solid, Special Paper A4, Letterhead Special, Letterhead Normal. Paper A3: A3 Paper, A3 Solid, Special Paper A3. Card A4 250g / 300g / 350g and Card A3 250g / 300g, each with its Solid version. Special Card: Special Card A4, A3, Solid A3. Products still keep category DI in Admin / Products, and all prices are unchanged. Dashboard and Reports totals by category list the four real categories only, DI, Large Format, Borderless and UV Print, even at ₦0, plus Jobs created in that period, and a Categories total (before discount) so the rows add up. Paper/Card split groups and Lanyards count back into DI in totals. Old sales stored as DI are split by the same mapping when totals are shown.
 
 ## Logo (receipt, 2026-11-13)
 - Website/header/login: colour PNG logo (logo-color.png, with black background).
 - Receipt: black clipart PNG, no background (logo-black-clipart.png), made from the colour logo by removing the outer black background and turning the shapes black, keeping YP/PRINTS details as negative space. Transparent PNG, 1208x400.
 - The previous all-black file sent by the user (yumarib_prints_black_clipart_16_gwxu.png) was a JPEG with every pixel black, so it could not be used as a logo.
+
+
+## Large Format calculator (2026-11-14)
+In Sell, tap the Large Format group (or All) to see the Large Format calculator.
+- Flex: width (feet) x height (feet) x 160. Example 5x7 ft: 5 x 7 x 160 = 5,600 NGN per banner. Quantity is number of banners.
+- SAV: width (inches) x height (inches) x 450 / 144. Example 5x7 in: 5 x 7 x 450 / 144 = 109.38, rounded to 109 NGN per sticker. Total = 109 x quantity.
+The calculated item is added to the Current sale as e.g. "Flex 5x7 ft" or "SAV 5x7 in", with size, quantity, unit price and total, shows on the receipt, and counts under Large Format in Dashboard totals. No other prices changed.

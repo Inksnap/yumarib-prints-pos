@@ -225,6 +225,22 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
         </div>
         <p id="customErr" class="err"></p>
       </div>
+      <div class="card" id="lfCalcCard" style="margin-bottom:12px">
+        <h3 style="margin:0 0 4px">Large Format calculator</h3>
+        <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV is charged per square inch.</p>
+        <div class="pay-pills" id="lfTypePills">
+          <button class="pill active" data-lf="Flex" type="button">Flex</button>
+          <button class="pill" data-lf="SAV" type="button">SAV</button>
+        </div>
+        <div class="form-row" style="margin-top:10px">
+          <div><label id="lfWidthLabel">Width (feet)</label><input id="lfWidth" type="number" min="0" step="0.5" placeholder="5"></div>
+          <div><label id="lfHeightLabel">Height (feet)</label><input id="lfHeight" type="number" min="0" step="0.5" placeholder="7"></div>
+          <div><label>Quantity</label><input id="lfQty" type="number" min="1" step="1" value="1"></div>
+        </div>
+        <div id="lfResult" class="card" style="margin-top:10px;background:var(--surface2);box-shadow:none"><p class="muted" style="margin:0">Enter width and height to see the price.</p></div>
+        <p id="lfErr" class="err"></p>
+        <div style="margin-top:10px"><button class="btn" id="addLfBtn" type="button">Add to sale</button></div>
+      </div>
       <div class="product-grid" id="productGrid"></div>
     </div>
     <aside class="card cart-panel" aria-label="Current sale">
@@ -630,6 +646,7 @@ function renderCatPills(){
 function cartQty(pid){var it=cart.filter(function(x){return x.productId===pid})[0];return it?it.qty:0}
 function renderSell(){
   renderCatPills();
+  var lfCard=$("lfCalcCard");if(lfCard)lfCard.style.display=(currentCat==="All"||currentCat==="Large Format")?"":"none";
   var q=($("sellSearch").value||"").toLowerCase();
   var list=state.products.filter(function(p){return (currentCat==="All"||sellGroup(p)===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
   var grid=$("productGrid");grid.innerHTML="";
@@ -731,6 +748,52 @@ $("addCustomBtn").onclick=function(){
   cart.push({key:uid(),productId:null,name:label,category:cat,price:price,qty:1});
   renderSell();
 };
+/* ---------- Large Format calculator ----------
+   User's exact formulas, no rates invented:
+   Flex: price per banner = width (feet) x height (feet) x 160.
+     Example 5x7 ft: 5 x 7 x 160 = 5600.
+   SAV: price per sticker = width (inches) x height (inches) x 450 / 144.
+     Example 5x7 in: 5 x 7 x 450 / 144 = 109.375, rounded to 109 per sticker.
+     Total = rounded per-one price x quantity.
+   Added items have category "Large Format", so they count under
+   Large Format in Dashboard / Reports totals and show on the receipt. */
+var lfType="Flex";
+function lfNum(v){v=Number(v);return (v%1===0)?String(v):String(v)}
+function lfCalc(){
+  var w=Number($("lfWidth").value||0),h=Number($("lfHeight").value||0),qty=Math.floor(Number($("lfQty").value||0));
+  if(!(w>0)||!(h>0)||!(qty>0))return null;
+  if(lfType==="Flex"){
+    var unit=Math.round(w*h*160);
+    return {type:"Flex",w:w,h:h,qty:qty,unit:unit,total:unit*qty,
+      name:"Flex "+lfNum(w)+"x"+lfNum(h)+" ft",
+      formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6160 = "+fmt(unit)+" per banner"};
+  }
+  var exact=w*h*450/144,unitS=Math.round(exact);
+  return {type:"SAV",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
+    name:"SAV "+lfNum(w)+"x"+lfNum(h)+" in",
+    formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6450 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
+}
+function renderLfCalc(){
+  $("lfWidthLabel").textContent=lfType==="Flex"?"Width (feet)":"Width (inches)";
+  $("lfHeightLabel").textContent=lfType==="Flex"?"Height (feet)":"Height (inches)";
+  var c=lfCalc(),box=$("lfResult");
+  if(!c){box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the price.</p>';$("addLfBtn").disabled=true;return}
+  $("addLfBtn").disabled=false;
+  var qtyLine=c.qty>1?'<div class="tot-row"><span>Quantity</span><strong>'+c.qty+'</strong></div>':"";
+  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(c.unit)+' each</strong></div>'+
+    '<div class="muted">'+esc(c.formula)+'</div>'+qtyLine+
+    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(c.total)+'</strong></div>';
+}
+document.querySelectorAll("#lfTypePills .pill").forEach(function(b){b.onclick=function(){lfType=b.dataset.lf;document.querySelectorAll("#lfTypePills .pill").forEach(function(x){x.classList.toggle("active",x===b)});renderLfCalc()}});
+["lfWidth","lfHeight","lfQty"].forEach(function(id){$(id).addEventListener("input",renderLfCalc)});
+$("addLfBtn").onclick=function(){
+  var c=lfCalc();
+  if(!c){$("lfErr").textContent="Enter width, height and quantity first. Example: Flex 5 by 7 feet, or SAV 5 by 7 inches.";return}
+  $("lfErr").textContent="";
+  cart.push({key:uid(),productId:null,name:c.name,category:"Large Format",price:c.unit,qty:c.qty});
+  renderSell();
+};
+renderLfCalc();
 $("chargeBtn").onclick=function(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
   if(!cart.length||calc.total<=0)return;
