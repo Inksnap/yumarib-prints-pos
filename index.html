@@ -62,7 +62,7 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .stock-warn{font-size:12px;font-weight:700;color:var(--warn-red)}
 .stock-low{font-size:12px;font-weight:700;color:var(--warn-amber)}
 .cat-DI{border-top-color:#f07a1a}.cat-LargeFormat{border-top-color:#7b5cff}.cat-Borderless{border-top-color:#8a97a0}.cat-UVPrint{border-top-color:#d97a5a}
-.cat-PaperA4{border-top-color:#f07a1a}.cat-PaperA3{border-top-color:#e86a17}.cat-CardA4250g{border-top-color:#4a8cff}.cat-CardA4300g{border-top-color:#3a7bd5}.cat-CardA4350g{border-top-color:#2f6fb0}.cat-CardA3250g{border-top-color:#8a97a0}.cat-CardA3300g{border-top-color:#6b7a86}.cat-SpecialCard{border-top-color:#d97a5a}
+.cat-PaperA4{border-top-color:#f07a1a}.cat-PaperA3{border-top-color:#e86a17}.cat-CardA4250g{border-top-color:#4a8cff}.cat-CardA4300g{border-top-color:#3a7bd5}.cat-CardA4350g{border-top-color:#2f6fb0}.cat-CardA3250g{border-top-color:#8a97a0}.cat-CardA3300g{border-top-color:#6b7a86}.cat-SpecialCard{border-top-color:#d97a5a}.cat-Lanyards{border-top-color:#f07a1a}
 .cart-panel{position:sticky;top:76px}
 .cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)}
 .qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:800;padding:0}
@@ -459,8 +459,9 @@ var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", 
 var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#7b5cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
 /* Sell groups: DI is split in the Sell screen, so staff find Paper and Card fast.
    Paper is A4 separate from A3. Card is separate by grams, A4 separate from A3.
-   Products keep category "DI" in Admin / Products; sellGroup() maps them here,
-   so old sales (stored as DI) split correctly in totals too. Prices unchanged. */
+   Lanyards is its own Sell group. Products keep category "DI" in Admin / Products;
+   sellGroup() maps them here. Totals by category count all of these back into DI.
+   Prices unchanged. */
 var SELL_GROUPS=[
  {name:"Paper A4",label:"Paper A4",color:"#f07a1a"},
  {name:"Paper A3",label:"Paper A3",color:"#e86a17"},
@@ -470,6 +471,7 @@ var SELL_GROUPS=[
  {name:"Card A3 250g",label:"Card A3 250g",color:"#8a97a0"},
  {name:"Card A3 300g",label:"Card A3 300g",color:"#6b7a86"},
  {name:"Special Card",label:"Special Card",color:"#d97a5a"},
+ {name:"Lanyards",label:"Lanyards",color:"#f07a1a"},
  {name:"Large Format",label:"Large Format",color:"#7b5cff"},
  {name:"Borderless",label:"Borderless",color:"#8a97a0"},
  {name:"UV Print",label:"UV Print",color:"#d97a5a"}
@@ -487,10 +489,12 @@ function sellGroup(p){
     "A4 350g":"Card A4 350g","A4 350g Solid":"Card A4 350g",
     "A3 250g":"Card A3 250g","A3 250g Solid":"Card A3 250g",
     "A3 300g":"Card A3 300g","A3 300g Solid":"Card A3 300g",
-    "Special Card A4":"Special Card","Special Card A3":"Special Card","Special Card Solid A3":"Special Card"
+    "Special Card A4":"Special Card","Special Card A3":"Special Card","Special Card Solid A3":"Special Card",
+    "Lanyard with extension":"Lanyards","Lanyard without extension":"Lanyards"
   };
   if(exact[n])return exact[n];
   if(n.indexOf("Special Card")===0)return "Special Card";
+  if(n.indexOf("Lanyard")===0)return "Lanyards";
   if(/^A4 250g/.test(n))return "Card A4 250g";if(/^A4 300g/.test(n))return "Card A4 300g";if(/^A4 350g/.test(n))return "Card A4 350g";
   if(/^A3 250g/.test(n))return "Card A3 250g";if(/^A3 300g/.test(n))return "Card A3 300g";
   if(/^A4/.test(n)||/Letterhead/.test(n))return "Paper A4";
@@ -503,6 +507,10 @@ function displayCategory(it){
   if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p)return sellGroup(p)}
   return it.category||"DI";
 }
+/* Totals by category: Paper/Card split groups (and Lanyards) all count back into DI.
+   Only the four real categories show in totals: DI, Large Format, Borderless, UV Print.
+   Sell screen still shows the Paper/Card split. */
+function totalCategory(it){var c=displayCategory(it);return CATS.some(function(g){return g.name===c})?c:"DI"}
 function catColor(c){var f=SELL_GROUPS.filter(function(x){return x.name===c})[0];if(f)return f.color;var g=CATS.filter(function(x){return x.name===c})[0];return g?g.color:"#f07a1a"}
 function catClass(c){return "cat-"+String(c||"DI").replace(/[^A-Za-z0-9]/g,"")}
 function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
@@ -519,7 +527,10 @@ function seedProducts(){
     ["A4 350g","DI",250,"per 1"],["A4 350g Solid","DI",500,"per 1"],["A3 250g","DI",300,"per 1"],["A3 250g Solid","DI",1000,"per 1"],
     ["A3 300g","DI",350,"per 1"],["A3 300g Solid","DI",1200,"per 1"],["Special Paper A4","DI",60,"per 1"],["Special Paper A3","DI",120,"per 1"],
     ["Special Card A4","DI",150,"per 1"],["Special Card A3","DI",250,"per 1"],["Special Card Solid A3","DI",500,"per 1"],
-    ["A2","Borderless",1800,"per 1"],["A1","Borderless",3600,"per 1"]
+    ["A2","Borderless",1800,"per 1"],["A1","Borderless",3600,"per 1"],
+    ["Pressing of Borderless","Borderless",100,"per 1"],
+    ["Lanyard with extension","DI",1500,"per 1"],["Lanyard without extension","DI",1200,"per 1"],
+    ["UV Pen","UV Print",100,"per 1"],["UV Diary","UV Print",500,"per 1"],["UV Flask","UV Print",500,"per 1"]
   ];
   return P.map(function(r,i){return {id:"seed"+(i+1),name:r[0],category:r[1],price:r[2],unit:r[3],stock:null,lowAt:5}});
 }
@@ -532,6 +543,9 @@ function load(){
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
     state.receiptSeq=state.receiptSeq||0;
+    /* Add any new seeded products (e.g. Lanyards, UV Pen/Diary/Flask, Pressing of Borderless)
+       to POS machines that were set up before they existed. Never touch sales/users. */
+    seedProducts().forEach(function(sp){if(!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
   }catch(e){state=defaultState()}
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}} 
@@ -619,7 +633,7 @@ function renderSell(){
   var q=($("sellSearch").value||"").toLowerCase();
   var list=state.products.filter(function(p){return (currentCat==="All"||sellGroup(p)===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
   var grid=$("productGrid");grid.innerHTML="";
-  if(!list.length)grid.innerHTML='<p class="muted">No products in this group yet. Large Format and UV Print start empty, add them as custom jobs.</p>';
+  if(!list.length)grid.innerHTML='<p class="muted">No products in this group yet. Large Format starts empty, add it as a custom job.</p>';
   list.forEach(function(p){
     var b=document.createElement("button");b.className="tile "+catClass(sellGroup(p))+(cartQty(p.id)?" in-cart":"");b.type="button";
     var stockHtml="";
@@ -813,12 +827,11 @@ function renderDashboard(){
   $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
   var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
   $("lowStockBox").innerHTML=low.length?'<div class="warn-box"><strong>Stock warning:</strong> '+low.map(function(p){return esc(p.name)+" ("+(p.stock===0?"out of stock":p.stock+" left")+")"}).join(", ")+'</div>':"";
-  /* Totals by category: show EVERY group, even ₦0, so it is never only DI.
-     Old sales stored as DI are split by sellGroup() via displayCategory().
+  /* Totals by category: only DI, Large Format, Borderless, UV Print, even ₦0.
+     Paper/Card split groups and Lanyards count back into DI via totalCategory().
      Jobs are shown on their own row, they have no product category. */
-  var byCat={};list.forEach(function(s){s.items.forEach(function(it){var k=displayCategory(it);byCat[k]=(byCat[k]||0)+it.price*it.qty})});
-  var catSum=0;var catRows=SELL_GROUPS.map(function(g){var v=byCat[g.name]||0;catSum+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
-  if(byCat["DI"]){catSum+=byCat["DI"];catRows+='<div class="tot-row"><span>DI — Direct Images (old)</span><strong>'+fmt(byCat["DI"])+'</strong></div>'}
+  var byCat={};list.forEach(function(s){s.items.forEach(function(it){var k=totalCategory(it);byCat[k]=(byCat[k]||0)+it.price*it.qty})});
+  var catSum=0;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;catSum+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsToday=state.jobs.filter(function(j){return dateOf(j.created)===d});
   var jobsTotal=jobsToday.reduce(function(a,j){return a+Number(j.total||0)},0);
   $("catTotals").innerHTML=catRows+
@@ -979,12 +992,11 @@ function renderReport(){
   var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
   var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
   $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Grand total</span><strong>'+fmt(total)+'</strong></div><div class="tot-row"><span>Collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
-  var byCatR={};list.forEach(function(s){s.items.forEach(function(it){var k=displayCategory(it);byCatR[k]=(byCatR[k]||0)+it.price*it.qty})});
-  var catSumR=0;var catRowsR=SELL_GROUPS.map(function(g){var v=byCatR[g.name]||0;catSumR+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
-  if(byCatR["DI"]){catSumR+=byCatR["DI"];catRowsR+='<div class="tot-row"><span>DI — Direct Images (old)</span><strong>'+fmt(byCatR["DI"])+'</strong></div>'}
+  var byCatR={};list.forEach(function(s){s.items.forEach(function(it){var k=totalCategory(it);byCatR[k]=(byCatR[k]||0)+it.price*it.qty})});
+  var catSumR=0;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;catSumR+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsR=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to});
   var jobsTotalR=jobsR.reduce(function(a,j){return a+Number(j.total||0)},0);
-  $("repCat").innerHTML='<h4>Totals by category (all groups, even ₦0)</h4>'+catRowsR+
+  $("repCat").innerHTML='<h4>Totals by category (DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
     '<div class="tot-row"><span>Jobs ('+jobsR.length+' in range)</span><strong>'+fmt(jobsTotalR)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (before discount)</span><strong>'+fmt(catSumR)+'</strong></div>';
   var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=it.price*it.qty})});
