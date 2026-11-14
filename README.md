@@ -59,3 +59,9 @@ In Sell, tap the Large Format group (or All) to see the Large Format calculator,
 - Custom Job: pick Flex, SAV or Other. For Flex/SAV the Price field fills in automatically and is read-only, and the card shows the calculation, e.g. "9 x 15 x ₦450 ÷ 144 = ₦422 per sticker". For Other, type the price manually. Custom Job also has a Quantity field.
 The calculated item is added to the Current sale as e.g. "Flex 5x7 ft" or "SAV 9x15 in", with size, quantity, unit price and total, shows on the receipt, and counts under Large Format in Dashboard totals. No other prices changed.
 Group counts: 29 seeded products in total. Large Format shows (0) because Flex and SAV are not seeded products, they are entered through the calculator / Custom Job. UV Print shows (3): UV Pen, UV Diary, UV Flask. Borderless shows (3): A2, A1, Pressing of Borderless. Lanyards shows (2). If a machine still shows UV Print (0) or Borderless (2), it is on an old cached version, reload the page once to pick up the new version.
+
+## Customer Screen (second screen)
+- Staff screen, Sell tab: tap **Open Customer Screen**. It opens `?customer=1` in a new window. Put that window on the customer screen.
+- The customer screen shows ONLY the current sale: logo, items, subtotal, discount, big total, paid / balance / change, and Thank you when paid. No tabs, Dashboard totals, sales by staff, expenses, reports, customer list or phone numbers, Jobs, product prices, login or admin.
+- It updates live as staff add items, because the staff screen publishes the current sale to localStorage on every change. Both windows must be in the same browser (Chrome) on the same machine.
+- Direct link: `https://inksnap.github.io/yumarib-prints-pos/?customer=1`
