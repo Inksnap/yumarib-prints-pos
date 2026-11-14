@@ -209,23 +209,8 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <div>
       <input id="sellSearch" placeholder="Search products..." autocomplete="off">
       <div class="pill-row" id="catPills"></div>
-      <div class="card" style="margin-bottom:12px">
-        <h3 style="margin:0 0 4px">Custom job</h3>
-        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Enter size and price, e.g. SAV 9 x 15 inches.</p>
-        <div class="form-row">
-          <div><label>Job type</label><input id="customName" value="SAV"></div>
-          <div><label>Price (₦)</label><input id="customPrice" type="number" min="0" step="1" placeholder="0"></div>
-          <div><label>Width (inches)</label><input id="customWidth" type="number" min="0" step="0.5" placeholder="9"></div>
-          <div><label>Height (inches)</label><input id="customHeight" type="number" min="0" step="0.5" placeholder="15"></div>
-        </div>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="margin:0">Category</label>
-          <select id="customCat" style="width:auto"><option value="Large Format">Large Format</option><option value="UV Print">UV Print</option><option value="DI">DI — Direct Images</option><option value="Borderless">Borderless</option></select>
-          <button class="btn" id="addCustomBtn">Add custom job to sale</button>
-        </div>
-        <p id="customErr" class="err"></p>
-      </div>
-      <div class="card" id="lfCalcCard" style="margin-bottom:12px">
+            <div class="product-grid" id="productGrid"></div>
+<div class="card" id="lfCalcCard" style="margin-bottom:12px">
         <h3 style="margin:0 0 4px">Large Format calculator</h3>
         <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV is charged per square inch.</p>
         <div class="pay-pills" id="lfTypePills">
@@ -241,7 +226,25 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
         <p id="lfErr" class="err"></p>
         <div style="margin-top:10px"><button class="btn" id="addLfBtn" type="button">Add to sale</button></div>
       </div>
-      <div class="product-grid" id="productGrid"></div>
+      <div class="card" id="customJobCard" style="margin-top:12px">
+        <h3 style="margin:0 0 4px">Custom job</h3>
+        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Type the size and the price is calculated automatically. Flex: width x height x &#8358;160. SAV: width x height x &#8358;450 &divide; 144 per one.</p>
+        <div class="form-row">
+          <div><label>Job type</label><select id="customType"><option value="SAV" selected>SAV</option><option value="Flex">Flex</option><option value="Other">Other</option></select></div>
+          <div id="customOtherWrap" style="display:none"><label>Job name</label><input id="customOtherName" value="Custom job" placeholder="Job name"></div>
+          <div><label id="customWidthLabel">Width (inches)</label><input id="customWidth" type="number" min="0" step="0.5" placeholder="9"></div>
+          <div><label id="customHeightLabel">Height (inches)</label><input id="customHeight" type="number" min="0" step="0.5" placeholder="15"></div>
+          <div><label>Quantity</label><input id="customQty" type="number" min="1" step="1" value="1"></div>
+          <div><label>Price (&#8358;) - auto</label><input id="customPrice" type="number" min="0" step="1" placeholder="0" readonly></div>
+        </div>
+        <div id="customCalc" class="card" style="margin-top:10px;background:var(--surface2);box-shadow:none"><p class="muted" style="margin:0">Enter width and height to see the price.</p></div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="margin:0">Category</label>
+          <select id="customCat" style="width:auto"><option value="Large Format">Large Format</option><option value="UV Print">UV Print</option><option value="DI">DI — Direct Images</option><option value="Borderless">Borderless</option></select>
+          <button class="btn" id="addCustomBtn">Add custom job to sale</button>
+        </div>
+        <p id="customErr" class="err"></p>
+      </div>
     </div>
     <aside class="card cart-panel" aria-label="Current sale">
       <h2 style="margin:0 0 8px">Current sale</h2>
@@ -647,10 +650,14 @@ function cartQty(pid){var it=cart.filter(function(x){return x.productId===pid})[
 function renderSell(){
   renderCatPills();
   var lfCard=$("lfCalcCard");if(lfCard)lfCard.style.display=(currentCat==="All"||currentCat==="Large Format")?"":"none";
+  /* Custom Job is always at the bottom of the Sell screen, below the product
+     grid and below the Large Format calculator. Never hide it by filter. */
+  var cjCard=$("customJobCard");if(cjCard)cjCard.style.display="";
+  renderCustomCalc();renderLfCalc();
   var q=($("sellSearch").value||"").toLowerCase();
   var list=state.products.filter(function(p){return (currentCat==="All"||sellGroup(p)===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
   var grid=$("productGrid");grid.innerHTML="";
-  if(!list.length)grid.innerHTML='<p class="muted">No products in this group yet. Large Format starts empty, add it as a custom job.</p>';
+  if(!list.length)grid.innerHTML='<p class="muted">No products in this group yet. Large Format is entered with the calculator and Custom job cards below.</p>';
   list.forEach(function(p){
     var b=document.createElement("button");b.className="tile "+catClass(sellGroup(p))+(cartQty(p.id)?" in-cart":"");b.type="button";
     var stockHtml="";
@@ -739,39 +746,86 @@ $("amountPaid").addEventListener("input",function(){$("amountPaid").dataset.touc
 $("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";renderCart()});
 document.querySelectorAll("#payPills .pill").forEach(function(b){b.onclick=function(){currentPay=b.dataset.pay;document.querySelectorAll("#payPills .pill").forEach(function(x){x.classList.toggle("active",x===b)});$("cashBox").style.display=currentPay==="Cash"?"block":"none";renderCart()}});
 $("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell()};
-$("addCustomBtn").onclick=function(){
-  var name=($("customName").value||"SAV").trim(),w=$("customWidth").value,h=$("customHeight").value,price=Number($("customPrice").value||0),cat=$("customCat").value;
-  if(!w||!h){$("customErr").textContent="Enter width and height, e.g. 9 and 15.";return}
-  if(price<=0){$("customErr").textContent="Enter a price for the custom job.";return}
-  $("customErr").textContent="";
-  var label=name+" "+w+" x "+h+" inches";
-  cart.push({key:uid(),productId:null,name:label,category:cat,price:price,qty:1});
-  renderSell();
-};
-/* ---------- Large Format calculator ----------
+/* ---------- Large Format pricing, shared by the calculator and Custom Job ----------
    User's exact formulas, no rates invented:
    Flex: price per banner = width (feet) x height (feet) x 160.
      Example 5x7 ft: 5 x 7 x 160 = 5600.
    SAV: price per sticker = width (inches) x height (inches) x 450 / 144.
      Example 5x7 in: 5 x 7 x 450 / 144 = 109.375, rounded to 109 per sticker.
+     Example 9x15 in: 9 x 15 x 450 / 144 = 421.875, rounded to 422 per sticker.
      Total = rounded per-one price x quantity.
-   Added items have category "Large Format", so they count under
-   Large Format in Dashboard / Reports totals and show on the receipt. */
-var lfType="Flex";
+   Added items have category "Large Format" (or the category picked on the
+   Custom Job card), so they count under Large Format in Dashboard / Reports
+   totals and show on the receipt. */
 function lfNum(v){v=Number(v);return (v%1===0)?String(v):String(v)}
-function lfCalc(){
-  var w=Number($("lfWidth").value||0),h=Number($("lfHeight").value||0),qty=Math.floor(Number($("lfQty").value||0));
+function calcLargeFormat(type,w,h,qty){
+  w=Number(w||0);h=Number(h||0);qty=Math.floor(Number(qty||0));
   if(!(w>0)||!(h>0)||!(qty>0))return null;
-  if(lfType==="Flex"){
+  if(type==="Flex"){
     var unit=Math.round(w*h*160);
     return {type:"Flex",w:w,h:h,qty:qty,unit:unit,total:unit*qty,
       name:"Flex "+lfNum(w)+"x"+lfNum(h)+" ft",
       formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6160 = "+fmt(unit)+" per banner"};
   }
-  var exact=w*h*450/144,unitS=Math.round(exact);
-  return {type:"SAV",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
-    name:"SAV "+lfNum(w)+"x"+lfNum(h)+" in",
-    formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6450 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
+  if(type==="SAV"){
+    var exact=w*h*450/144,unitS=Math.round(exact);
+    return {type:"SAV",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
+      name:"SAV "+lfNum(w)+"x"+lfNum(h)+" in",
+      formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6450 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
+  }
+  return null;
+}
+/* ---------- Custom Job (always at the bottom of Sell) ----------
+   Price is calculated automatically as soon as width and height are typed.
+   Flex uses feet and x160, SAV uses inches and x450/144. Staff never have
+   to type the price for Flex or SAV. "Other" keeps a manual price. */
+function customCalc(){
+  var type=$("customType").value;
+  if(type==="Other")return null;
+  return calcLargeFormat(type,$("customWidth").value,$("customHeight").value,$("customQty").value);
+}
+function renderCustomCalc(){
+  var type=$("customType").value,box=$("customCalc"),priceEl=$("customPrice");
+  $("customWidthLabel").textContent=type==="Flex"?"Width (feet)":"Width (inches)";
+  $("customHeightLabel").textContent=type==="Flex"?"Height (feet)":"Height (inches)";
+  $("customOtherWrap").style.display=type==="Other"?"":"none";
+  if(type==="Other"){
+    priceEl.readOnly=false;
+    box.innerHTML='<p class="muted" style="margin:0">Other job: enter the price manually, then add it to the sale.</p>';
+    return;
+  }
+  priceEl.readOnly=true;
+  var c=customCalc();
+  if(!c){priceEl.value="";box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the price.</p>';return}
+  priceEl.value=String(c.unit);
+  var qtyLine=c.qty>1?'<div class="tot-row"><span>Quantity</span><strong>'+c.qty+'</strong></div>':"";
+  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(c.unit)+' each</strong></div>'+
+    '<div class="muted">'+esc(c.formula)+'</div>'+qtyLine+
+    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(c.total)+'</strong></div>';
+}
+["customType","customWidth","customHeight","customQty"].forEach(function(id){$(id).addEventListener("input",renderCustomCalc);$(id).addEventListener("change",renderCustomCalc)});
+$("addCustomBtn").onclick=function(){
+  var type=$("customType").value,cat=$("customCat").value,w=$("customWidth").value,h=$("customHeight").value;
+  if(!w||!h){$("customErr").textContent="Enter width and height, e.g. SAV 9 and 15.";return}
+  if(type==="Other"){
+    var price=Number($("customPrice").value||0);
+    if(price<=0){$("customErr").textContent="Enter a price for the custom job.";return}
+    var qtyO=Math.max(1,Math.floor(Number($("customQty").value||1)));
+    var nameO=($("customOtherName").value||"Custom job").trim();
+    $("customErr").textContent="";
+    cart.push({key:uid(),productId:null,name:nameO+" "+w+" x "+h,category:cat,price:price,qty:qtyO});
+    renderSell();return;
+  }
+  var c=customCalc();
+  if(!c){$("customErr").textContent="Enter width and height, e.g. SAV 9 and 15.";return}
+  $("customErr").textContent="";
+  cart.push({key:uid(),productId:null,name:c.name,category:cat,price:c.unit,qty:c.qty});
+  renderSell();
+};
+/* ---------- Large Format calculator ---------- */
+var lfType="Flex";
+function lfCalc(){
+  return calcLargeFormat(lfType,$("lfWidth").value,$("lfHeight").value,$("lfQty").value);
 }
 function renderLfCalc(){
   $("lfWidthLabel").textContent=lfType==="Flex"?"Width (feet)":"Width (inches)";
@@ -793,6 +847,7 @@ $("addLfBtn").onclick=function(){
   cart.push({key:uid(),productId:null,name:c.name,category:"Large Format",price:c.unit,qty:c.qty});
   renderSell();
 };
+renderCustomCalc();
 renderLfCalc();
 $("chargeBtn").onclick=function(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));

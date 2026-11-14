@@ -29,7 +29,7 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 
 ## What is inside
 
-- Sell: category pills (All 23, Paper A4, Paper A3, Card A4 250g, Card A4 300g, Card A4 350g, Card A3 250g, Card A3 300g, Special Card, Large Format, Borderless, UV Print), search, product tiles with coloured top borders, in-cart badge, custom job card (Width/Height → e.g. “SAV 9 x 15 inches”), sticky Current sale panel (370px), flat ₦ or % discount, Cash / POS / Transfer, cash received and change, part payment / credit with Paid and Balance on the receipt.
+- Sell: category pills (All 29, Paper A4, Paper A3, Card A4 250g, Card A4 300g, Card A4 350g, Card A3 250g, Card A3 300g, Special Card, Lanyards, Large Format, Borderless, UV Print), search, product tiles with coloured top borders, in-cart badge, Large Format calculator and Custom job card at the bottom of the Sell screen, below the product grid (Custom Job is always last), sticky Current sale panel (370px), flat ₦ or % discount, Cash / POS / Transfer, cash received and change, part payment / credit with Paid and Balance on the receipt.
 - Dashboard: Grand total, Sales, Collected so far, Still owed, Before discount, Discounts given; Totals by category (every group listed, even ₦0, plus Jobs created that day, and a Categories total before discount), Money by payment, Sales by staff; Daily cash closing (Cash/POS/Transfer received, expected cash, counted cash, difference); Today's sales with Reprint / WhatsApp; low-stock warnings.
 - Jobs: customer, total, deposit, statuses Pending / In Production / Ready / Collected. A job cannot be Collected while a balance is outstanding; record further payments against it.
 - Products (admin only): add / edit / delete, stock counts. Stock starts untracked until an admin sets it, then counts down on sale. Low stock (5 or fewer) and out of stock warnings show on Sell and Dashboard.
@@ -52,8 +52,10 @@ DI is split in the Sell screen only, so staff do not have to hunt paper and card
 - The previous all-black file sent by the user (yumarib_prints_black_clipart_16_gwxu.png) was a JPEG with every pixel black, so it could not be used as a logo.
 
 
-## Large Format calculator (2026-11-14)
-In Sell, tap the Large Format group (or All) to see the Large Format calculator.
+## Large Format calculator and Custom Job (2026-11-14)
+In Sell, tap the Large Format group (or All) to see the Large Format calculator, below the product grid. The Custom Job card is always at the very bottom of the Sell screen, below the product grid and below the Large Format calculator, on every group filter. Both calculate the price automatically as soon as width and height are typed, using the same formulas, so they always agree.
 - Flex: width (feet) x height (feet) x 160. Example 5x7 ft: 5 x 7 x 160 = 5,600 NGN per banner. Quantity is number of banners.
-- SAV: width (inches) x height (inches) x 450 / 144. Example 5x7 in: 5 x 7 x 450 / 144 = 109.38, rounded to 109 NGN per sticker. Total = 109 x quantity.
-The calculated item is added to the Current sale as e.g. "Flex 5x7 ft" or "SAV 5x7 in", with size, quantity, unit price and total, shows on the receipt, and counts under Large Format in Dashboard totals. No other prices changed.
+- SAV: width (inches) x height (inches) x 450 / 144. Example 5x7 in: 5 x 7 x 450 / 144 = 109.38, rounded to 109 NGN per sticker. Example 9x15 in: 9 x 15 x 450 / 144 = 421.88, rounded to 422 NGN per sticker. Total = per-one price x quantity.
+- Custom Job: pick Flex, SAV or Other. For Flex/SAV the Price field fills in automatically and is read-only, and the card shows the calculation, e.g. "9 x 15 x ₦450 ÷ 144 = ₦422 per sticker". For Other, type the price manually. Custom Job also has a Quantity field.
+The calculated item is added to the Current sale as e.g. "Flex 5x7 ft" or "SAV 9x15 in", with size, quantity, unit price and total, shows on the receipt, and counts under Large Format in Dashboard totals. No other prices changed.
+Group counts: 29 seeded products in total. Large Format shows (0) because Flex and SAV are not seeded products, they are entered through the calculator / Custom Job. UV Print shows (3): UV Pen, UV Diary, UV Flask. Borderless shows (3): A2, A1, Pressing of Borderless. Lanyards shows (2). If a machine still shows UV Print (0) or Borderless (2), it is on an old cached version, reload the page once to pick up the new version.
