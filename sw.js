@@ -1,5 +1,5 @@
 /* Yumarib Prints POS service worker: cache the app shell so it opens fast and can be installed. */
-var CACHE = "yumarib-pos-v9";
+var CACHE = "yumarib-pos-v10";
 var FILES = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).catch(function () {}));

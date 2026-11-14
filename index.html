@@ -530,6 +530,28 @@ function displayCategory(it){
    Only the four real categories show in totals: DI, Large Format, Borderless, UV Print.
    Sell screen still shows the Paper/Card split. */
 function totalCategory(it){var c=displayCategory(it);return CATS.some(function(g){return g.name===c})?c:"DI"}
+/* Totals by category AFTER discount: each sale's discount is split across its
+   categories in proportion to their amounts, so the category totals add up
+   exactly to the grand total after discount. Rounding is fixed per sale by
+   putting any ₦1 remainder on the largest line. */
+function catTotalsAfterDiscount(list){
+  var byCat={};CATS.forEach(function(g){byCat[g.name]=0});
+  var discTotal=0;
+  (list||[]).forEach(function(s){
+    var items=s.items||[];if(!items.length)return;
+    var sub=items.reduce(function(a,it){return a+Number(it.price||0)*Number(it.qty||0)},0);
+    if(sub<=0)return;
+    var disc=Math.min(Math.max(Number(s.discount||0),0),sub);disc=Math.round(disc);discTotal+=disc;
+    var target=Math.round(sub-disc);
+    var nets=items.map(function(it){var raw=Number(it.price||0)*Number(it.qty||0);return {k:totalCategory(it),net:Math.round(raw-raw*disc/sub)}});
+    var netSum=nets.reduce(function(a,n){return a+n.net},0);
+    var diff=target-netSum;
+    if(diff!==0){var idx=0;nets.forEach(function(n,i){if(n.net>nets[idx].net)idx=i});nets[idx].net+=diff}
+    nets.forEach(function(n){byCat[n.k]=(byCat[n.k]||0)+n.net});
+  });
+  var catSum=CATS.reduce(function(a,g){return a+(byCat[g.name]||0)},0);
+  return {byCat:byCat,disc:discTotal,catSum:catSum};
+}
 function catColor(c){var f=SELL_GROUPS.filter(function(x){return x.name===c})[0];if(f)return f.color;var g=CATS.filter(function(x){return x.name===c})[0];return g?g.color:"#f07a1a"}
 function catClass(c){return "cat-"+String(c||"DI").replace(/[^A-Za-z0-9]/g,"")}
 function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
@@ -945,17 +967,19 @@ function renderDashboard(){
   $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
   var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
   $("lowStockBox").innerHTML=low.length?'<div class="warn-box"><strong>Stock warning:</strong> '+low.map(function(p){return esc(p.name)+" ("+(p.stock===0?"out of stock":p.stock+" left")+")"}).join(", ")+'</div>':"";
-  /* Totals by category: only DI, Large Format, Borderless, UV Print, even ₦0.
+  /* Totals by category AFTER discount: only DI, Large Format, Borderless, UV Print, even ₦0.
      Paper/Card split groups and Lanyards count back into DI via totalCategory().
+     Each sale's discount is split across its categories in proportion to their
+     amounts, so the rows add up to the grand total after discount.
      Jobs are shown on their own row, they have no product category. */
-  var byCat={};list.forEach(function(s){s.items.forEach(function(it){var k=totalCategory(it);byCat[k]=(byCat[k]||0)+it.price*it.qty})});
-  var catSum=0;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;catSum+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
+  var catAfter=catTotalsAfterDiscount(list);var byCat=catAfter.byCat;var disc=catAfter.disc;
+  var catSum=catAfter.catSum;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsToday=state.jobs.filter(function(j){return dateOf(j.created)===d});
   var jobsTotal=jobsToday.reduce(function(a,j){return a+Number(j.total||0)},0);
   $("catTotals").innerHTML=catRows+
     '<div class="tot-row"><span>Jobs ('+jobsToday.length+' job'+(jobsToday.length===1?"":"s")+' created today)</span><strong>'+fmt(jobsTotal)+'</strong></div>'+
-    '<div class="tot-row grand"><span>Categories total (before discount)</span><strong>'+fmt(catSum)+'</strong></div>'+
-    '<p class="muted">Categories add up to the before-discount total. Discount that day: '+fmt(disc)+' · Grand total after discount: '+fmt(grand)+'.</p>';
+    '<div class="tot-row grand"><span>Categories total (after discount)</span><strong>'+fmt(catSum)+'</strong></div>'+
+    '<p class="muted">Category amounts are after discount. Discount that day: '+fmt(disc)+' · Grand total after discount: '+fmt(grand)+'.</p>';
   var byPay={};list.forEach(function(s){byPay[s.payment]=(byPay[s.payment]||0)+Number(s.paid||0)});
   state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
@@ -1110,13 +1134,14 @@ function renderReport(){
   var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
   var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
   $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Grand total</span><strong>'+fmt(total)+'</strong></div><div class="tot-row"><span>Collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
-  var byCatR={};list.forEach(function(s){s.items.forEach(function(it){var k=totalCategory(it);byCatR[k]=(byCatR[k]||0)+it.price*it.qty})});
-  var catSumR=0;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;catSumR+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
+  var catAfterR=catTotalsAfterDiscount(list);var byCatR=catAfterR.byCat;var discR=catAfterR.disc;
+  var catSumR=catAfterR.catSum;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsR=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to});
   var jobsTotalR=jobsR.reduce(function(a,j){return a+Number(j.total||0)},0);
-  $("repCat").innerHTML='<h4>Totals by category (DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
+  $("repCat").innerHTML='<h4>Totals by category (after discount — DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
     '<div class="tot-row"><span>Jobs ('+jobsR.length+' in range)</span><strong>'+fmt(jobsTotalR)+'</strong></div>'+
-    '<div class="tot-row grand"><span>Categories total (before discount)</span><strong>'+fmt(catSumR)+'</strong></div>';
+    '<div class="tot-row grand"><span>Categories total (after discount)</span><strong>'+fmt(catSumR)+'</strong></div>'+
+    '<p class="muted">Category amounts are after discount. Discount in range: '+fmt(discR)+' · Grand total after discount: '+fmt(total)+'.</p>';
   var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=it.price*it.qty})});
   var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
   $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
