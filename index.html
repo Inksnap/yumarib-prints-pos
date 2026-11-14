@@ -40,7 +40,6 @@ header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--
 .tab:hover{transform:translateY(-1px);color:var(--text)}
 .tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent);box-shadow:0 6px 16px rgba(232,106,23,.35)}
 .header-right{margin-left:auto;display:flex;align-items:center;gap:12px;text-align:right}
-.header-right .today{font-weight:800}
 main{max-width:1280px;margin:0 auto;padding:16px}
 .view{display:none}.view.active{display:block}
 .pill{border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:999px;padding:7px 14px;font-weight:700;transition:transform .15s}
@@ -145,49 +144,10 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
 .auth-logo{display:block;height:64px;width:auto;max-width:300px;object-fit:contain;background:#000;border-radius:6px;padding:0;margin:0 auto 14px}
 .receipt .r-logo{background:transparent;border-radius:0;padding:0;display:inline-block}
 .receipt .r-logo img{max-width:200px;max-height:66px;width:200px;height:auto;display:block;filter:grayscale(1);print-color-adjust:exact;-webkit-print-color-adjust:exact}
-/* Customer Screen (second screen): shows ONLY the current sale. No tabs, totals,
-   Dashboard, Jobs, Products, Admin, customer list, phone numbers or other sales.
-   Open with ?customer=1 in a second window in the same browser. */
-#customerScreen{display:none}
-body.customer-mode #setupScreen,body.customer-mode #loginScreen,body.customer-mode #app,body.customer-mode .modal-back{display:none!important}
-body.customer-mode #customerScreen{display:block;min-height:100vh;background:var(--bg)}
-.cust-wrap{max-width:900px;margin:0 auto;padding:28px 20px 48px;text-align:center}
-.cust-logo{height:96px;width:auto;max-width:420px;object-fit:contain;background:#000;border-radius:10px;padding:0}
-.cust-title{font-size:34px;margin:18px 0 4px}
-.cust-item{display:flex;justify-content:space-between;gap:12px;padding:16px 4px;border-bottom:1px solid var(--border);font-size:21px;text-align:left}
-.cust-item .muted{font-size:16px}
-.cust-tot{display:flex;justify-content:space-between;padding:8px 4px;font-size:22px}
-.cust-total{font-size:64px;font-weight:900;color:var(--text);line-height:1.1}
-.cust-thanks{font-size:38px;font-weight:900;color:var(--accent);margin-top:18px}
 </style>
 </head>
 <body>
 <div id="printArea" aria-hidden="true"></div>
-
-<!-- CUSTOMER SCREEN: second screen. Shows ONLY the current sale. No tabs, totals,
-     Dashboard, Jobs, Products, Admin, customer list, phone numbers or other sales.
-     Open with ?customer=1, in a second window in the same browser as the staff screen. -->
-<div id="customerScreen" aria-live="polite">
-  <div class="cust-wrap">
-    <img src="logo-color.png" class="cust-logo" alt="Yumarib Prints logo">
-    <h1 class="cust-title">Your order</h1>
-    <p class="muted" id="custStatus" style="font-size:18px">Welcome to Yumarib Prints</p>
-    <div id="custItems" style="text-align:left"></div>
-    <div id="custTotals" style="display:none;margin-top:14px">
-      <div class="cust-tot"><span>Subtotal</span><strong id="custSubtotal">₦0</strong></div>
-      <div class="cust-tot" id="custDiscountRow"><span>Discount</span><strong id="custDiscount">₦0</strong></div>
-      <div style="border-top:2px solid var(--accent);margin:10px 0"></div>
-      <div class="muted" style="font-size:18px">Total to pay</div>
-      <div class="cust-total" id="custTotal">₦0</div>
-      <div class="cust-tot" id="custPaidRow"><span>Paid</span><strong id="custPaid">₦0</strong></div>
-      <div class="cust-tot" id="custBalanceRow"><span>Balance</span><strong id="custBalance">₦0</strong></div>
-      <div class="cust-tot" id="custChangeRow"><span>Change</span><strong id="custChange">₦0</strong></div>
-      <div class="cust-tot" id="custPaymentRow"><span>Payment</span><strong id="custPayment"></strong></div>
-    </div>
-    <div id="custThanks" style="display:none"><div class="cust-thanks">Thank you!</div><div style="font-size:20px">Please come again</div></div>
-    <p class="muted" id="custHint" style="font-size:17px;margin-top:22px">Please pay at the counter.</p>
-  </div>
-</div>
 
 <!-- FIRST SETUP -->
 <div id="setupScreen" class="auth-wrap" style="display:none">
@@ -234,7 +194,6 @@ body.customer-mode #customerScreen{display:block;min-height:100vh;background:var
   </nav>
   <div class="header-right">
     <div><div id="headerUser" style="font-weight:700"></div><div class="muted" id="headerRole"></div></div>
-    <div><div class="muted">Today total</div><div class="today" id="headerToday">₦0</div></div>
     <button class="btn-ghost btn btn-sm" id="themeToggle" type="button" title="Switch light / dark mode">☀️ Light</button>
     <button class="btn btn-sm" id="installBtn" type="button" title="Install Yumarib Prints POS to desktop">⬇ Install to desktop</button>
     <button class="btn-ghost btn btn-sm" id="logoutBtn">Log out</button>
@@ -244,12 +203,6 @@ body.customer-mode #customerScreen{display:block;min-height:100vh;background:var
 
 <!-- SELL -->
 <section id="view-sell" class="view active">
-  <div class="card" style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-    <div><strong>Customer Screen (second screen)</strong>
-    <p class="muted" style="margin:4px 0 0">Open this on the customer screen. It shows only the current sale and total, nothing else. It updates live as you add items here. It must be open in the same browser (Chrome) as the staff screen.</p>
-    <p class="muted" style="margin:4px 0 0">Link: <span id="custLinkText"></span></p></div>
-    <button class="btn" id="openCustomerBtn" type="button">Open Customer Screen</button>
-  </div>
   <div class="sell-grid">
     <div>
       <input id="sellSearch" placeholder="Search products..." autocomplete="off">
@@ -517,9 +470,6 @@ body.customer-mode #customerScreen{display:block;min-height:100vh;background:var
 </div>
 <script>
 "use strict";
-/* Customer Screen mode: ?customer=1 (or #customer) opens the customer-only view
-   in a second window, instead of the staff POS. See initCustomerScreen(). */
-var IS_CUSTOMER=/[?&]customer=1(?:&|$)/.test(location.search)||location.hash==="#customer";
 /* ---------- storage ---------- */
 var KEY="yumarib-pos-v1";
 var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null;
@@ -638,46 +588,6 @@ function load(){
   }catch(e){state=defaultState()}
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}}
-/* ---------- Customer Screen live state ----------
-   The staff cart is in memory only, so the customer screen in a second window
-   cannot see it from the saved sales. The staff screen therefore publishes the
-   current sale to its own localStorage key (LIVE_KEY) on every change, and the
-   customer window reads that key (storage event + 500ms poll). This only works
-   in two windows in the SAME browser on the SAME machine, because localStorage
-   is per browser. The customer screen never writes to this key.
-   Status "paid" is a snapshot of the last charged sale, kept until the next
-   item is added or the sale is cleared, so the customer still sees
-   "Thank you" after the staff screen clears the cart. */
-var LIVE_KEY="yumarib-pos-live-v1";
-var lastLivePaid=null;
-function liveShopName(){return (state&&state.shop&&state.shop.name)||"YUMARIB PRINTS"}
-function publishLive(){
-  if(IS_CUSTOMER)return;
-  try{
-    var data;
-    if(cart.length){
-      var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
-      var paid=Number($("amountPaid").value||0);
-      lastLivePaid=null;
-      data={v:1,updatedAt:Date.now(),status:"open",
-        items:cart.map(function(it){return {name:it.name,qty:it.qty,price:it.price}}),
-        subtotal:calc.subtotal,discount:calc.discount,total:calc.total,paid:paid,
-        balance:Math.max(0,calc.total-paid),payment:currentPay,
-        change:currentPay==="Cash"?Math.max(0,Number($("cashReceived").value||0)-paid):0,
-        receiptNo:"",shopName:liveShopName()};
-    }else if(lastLivePaid){data=lastLivePaid;}
-    else{data={v:1,updatedAt:Date.now(),status:"empty",items:[],subtotal:0,discount:0,total:0,paid:0,balance:0,payment:"",change:0,receiptNo:"",shopName:liveShopName()};}
-    localStorage.setItem(LIVE_KEY,JSON.stringify(data));
-  }catch(e){}
-}
-function publishLivePaid(sale){
-  lastLivePaid={v:1,updatedAt:Date.now(),status:"paid",
-    items:(sale.items||[]).map(function(it){return {name:it.name,qty:it.qty,price:it.price}}),
-    subtotal:sale.subtotal,discount:sale.discount,total:sale.total,paid:sale.paid,
-    balance:sale.balance,payment:sale.payment,change:sale.change||0,
-    receiptNo:sale.receiptNo||"",shopName:liveShopName()};
-  try{localStorage.setItem(LIVE_KEY,JSON.stringify(lastLivePaid))}catch(e){}
-}
 /* ---------- pure logic (also used by tests) ---------- */
 function calcSale(items,discountType,discountValue){
   var sub=items.reduce(function(s,it){return s+it.price*it.qty},0);
@@ -724,7 +634,7 @@ $("setupBtn").onclick=function(){
 $("loginBtn").onclick=tryLogin;
 $("loginPassword").addEventListener("keydown",function(e){if(e.key==="Enter")tryLogin()});
 $("loginBack").onclick=function(){renderLoginUsers()};
-$("logoutBtn").onclick=function(){currentUser=null;cart=[];lastLivePaid=null;publishLive();showLogin()};
+$("logoutBtn").onclick=function(){currentUser=null;cart=[];showLogin()};
 /* ---------- tabs ---------- */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("active",t.dataset.tab===name)});
@@ -809,8 +719,6 @@ function refreshCartTotals(){
   $("cashChange").textContent=fmt(Math.max(0,cash-paid));
   $("chargeBtn").disabled=cart.length===0||calc.total<=0;
   $("chargeHint").textContent=bal>0?"Part payment: "+fmt(bal)+" will stay as balance on the customer. Add the customer name above.":"";
-  updateHeaderToday();
-  publishLive();
 }
 function renderCart(){
   syncPaidDefaults();
@@ -856,7 +764,7 @@ $("discountValue").addEventListener("input",function(){syncPaidDefaults();render
 $("amountPaid").addEventListener("input",function(){$("amountPaid").dataset.touched="1";if(currentPay==="Cash"&&!$("cashReceived").dataset.touched)$("cashReceived").value=$("amountPaid").value;renderCart()});
 $("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";renderCart()});
 document.querySelectorAll("#payPills .pill").forEach(function(b){b.onclick=function(){currentPay=b.dataset.pay;document.querySelectorAll("#payPills .pill").forEach(function(x){x.classList.toggle("active",x===b)});$("cashBox").style.display=currentPay==="Cash"?"block":"none";renderCart()}});
-$("clearCartBtn").onclick=function(){cart=[];lastLivePaid=null;delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell()};
+$("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell()};
 /* ---------- Large Format pricing, shared by the calculator and Custom Job ----------
    User's exact formulas, no rates invented:
    Flex: price per banner = width (feet) x height (feet) x 160.
@@ -978,7 +886,7 @@ $("chargeBtn").onclick=function(){
   state.sales.push(sale);
   cart.forEach(function(it){if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p&&p.stock!==null&&p.stock!==undefined)p.stock=Math.max(0,p.stock-it.qty)}});
   if(name)upsertCustomer(name,phone);
-  save();lastSaleId=sale.id;publishLivePaid(sale);
+  save();lastSaleId=sale.id;
   cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;
   $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("amountPaid").value="";$("cashReceived").value="";
   $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full");
@@ -1038,11 +946,6 @@ function sendWhatsAppReceipt(s){
   var url=phone?"https://wa.me/"+phone+"?text="+encodeURIComponent(receiptText(s)):"https://wa.me/?text="+encodeURIComponent(receiptText(s));
   window.open(url,"_blank");
 }
-function updateHeaderToday(){
-  var t=todayStr();
-  var total=state.sales.filter(function(s){return dateOf(s.date)===t&&!s.voided}).reduce(function(a,s){return a+Number(s.total||0)},0);
-  $("headerToday").textContent=fmt(total);
-}
 /* ---------- dashboard ---------- */
 function salesOn(date){return state.sales.filter(function(s){return dateOf(s.date)===date&&!s.voided})}
 function renderDashboard(){
@@ -1079,7 +982,6 @@ function renderDashboard(){
   ts.innerHTML=list.length?'<table><tr><th>Receipt</th><th>Time</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th></th></tr>'+list.slice().reverse().map(function(s){return '<tr><td>'+esc(s.receiptNo)+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> <button class="btn-ghost btn btn-sm" data-w="'+s.id+'">WhatsApp</button></td></tr>'}).join("")+'</table>':'<p class="muted">No sales on this date yet.</p>';
   ts.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
   ts.querySelectorAll("[data-w]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.w);if(s)sendWhatsAppReceipt(s)}});
-  updateHeaderToday();
 }
 function renderClosing(d){
   var list=salesOn(d);
@@ -1345,63 +1247,11 @@ var LOGO_BLACK_SRC=LOGO_BLACK_CLIPART_SRC;
 var LOGO_SRC=LOGO_BLACK_CLIPART_SRC;
 updateLogos(document.documentElement.getAttribute("data-theme")||"dark");
 
-/* ---------- Customer Screen ----------
-   Shows ONLY the current sale from LIVE_KEY: logo, items, subtotal, discount,
-   big total, paid / balance / change when paid, and Thank you when done.
-   No tabs, Dashboard totals, sales by staff, expenses, reports, customer list
-   or phone numbers, Jobs list, product prices, login or admin. It updates live
-   via the storage event, with a 500ms poll as a backup. */
-function readLive(){try{var raw=localStorage.getItem(LIVE_KEY);return raw?JSON.parse(raw):null}catch(e){return null}}
-function renderCustomerLive(){
-  var d=readLive();
-  var itemsEl=$("custItems"),totalsEl=$("custTotals"),thanksEl=$("custThanks");
-  if(!d||!d.items||!d.items.length){
-    $("custStatus").textContent="Welcome to Yumarib Prints";
-    itemsEl.innerHTML='<p class="muted" style="font-size:20px;text-align:center;margin-top:24px">No sale yet.</p>';
-    totalsEl.style.display="none";thanksEl.style.display="none";
-    $("custHint").textContent="Please pay at the counter.";
-    return;
-  }
-  $("custStatus").textContent=d.status==="paid"?("Paid — Receipt "+(d.receiptNo||"")):"Your order so far";
-  itemsEl.innerHTML=d.items.map(function(it){
-    return '<div class="cust-item"><div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+fmt(it.price)+' each &times; '+it.qty+'</span></div><strong>'+fmt(it.price*it.qty)+'</strong></div>';
-  }).join("");
-  totalsEl.style.display="block";
-  $("custSubtotal").textContent=fmt(d.subtotal);
-  $("custDiscountRow").style.display=d.discount>0?"":"none";
-  $("custDiscount").textContent="-"+fmt(d.discount);
-  $("custTotal").textContent=fmt(d.total);
-  $("custPaidRow").style.display=(d.status==="paid"||d.paid>0)?"":"none";
-  $("custPaid").textContent=fmt(d.paid);
-  $("custBalanceRow").style.display=d.balance>0?"":"none";
-  $("custBalance").textContent=fmt(d.balance);
-  $("custChangeRow").style.display=d.change>0?"":"none";
-  $("custChange").textContent=fmt(d.change);
-  $("custPaymentRow").style.display=d.status==="paid"?"":"none";
-  $("custPayment").textContent=d.payment||"";
-  thanksEl.style.display=d.status==="paid"?"":"none";
-  $("custHint").textContent=d.status==="paid"?"Thank you for printing with us.":(d.balance>0?"Balance "+fmt(d.balance)+" — please pay at the counter.":"Please pay at the counter.");
-}
-function initCustomerScreen(){
-  document.body.classList.add("customer-mode");
-  $("customerScreen").style.display="block";
-  renderCustomerLive();
-  window.addEventListener("storage",function(e){if(e.key===LIVE_KEY)renderCustomerLive()});
-  setInterval(renderCustomerLive,500);
-}
-
 /* ---------- init ---------- */
-function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin();updateHeaderToday()}
-if(IS_CUSTOMER){initCustomerScreen();}
-else{
-  load();
-  if(!state.users.length)showSetup();else showLogin();
-  syncPaidDefaults();
-  var _ocb=$("openCustomerBtn");
-  if(_ocb)_ocb.onclick=function(){window.open(location.pathname+"?customer=1","_blank")};
-  var _clt=$("custLinkText");
-  if(_clt)_clt.textContent=location.origin+location.pathname+"?customer=1";
-}
+function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin()}
+load();
+if(!state.users.length)showSetup();else showLogin();
+syncPaidDefaults();
 </script>
 </body>
 </html>
