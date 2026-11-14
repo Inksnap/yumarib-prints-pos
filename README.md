@@ -29,8 +29,8 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 
 ## What is inside
 
-- Sell: category pills (All 23, DI, Large Format, Borderless, UV Print), search, product tiles with coloured top borders, in-cart badge, custom job card (Width/Height → e.g. “SAV 9 x 15 inches”), sticky Current sale panel (370px), flat ₦ or % discount, Cash / POS / Transfer, cash received and change, part payment / credit with Paid and Balance on the receipt.
-- Dashboard: Grand total, Sales, Collected so far, Still owed, Before discount, Discounts given; Totals by category, Money by payment, Sales by staff; Daily cash closing (Cash/POS/Transfer received, expected cash, counted cash, difference); Today's sales with Reprint / WhatsApp; low-stock warnings.
+- Sell: category pills (All 23, Paper A4, Paper A3, Card A4 250g, Card A4 300g, Card A4 350g, Card A3 250g, Card A3 300g, Special Card, Large Format, Borderless, UV Print), search, product tiles with coloured top borders, in-cart badge, custom job card (Width/Height → e.g. “SAV 9 x 15 inches”), sticky Current sale panel (370px), flat ₦ or % discount, Cash / POS / Transfer, cash received and change, part payment / credit with Paid and Balance on the receipt.
+- Dashboard: Grand total, Sales, Collected so far, Still owed, Before discount, Discounts given; Totals by category (every group listed, even ₦0, plus Jobs created that day, and a Categories total before discount), Money by payment, Sales by staff; Daily cash closing (Cash/POS/Transfer received, expected cash, counted cash, difference); Today's sales with Reprint / WhatsApp; low-stock warnings.
 - Jobs: customer, total, deposit, statuses Pending / In Production / Ready / Collected. A job cannot be Collected while a balance is outstanding; record further payments against it.
 - Products (admin only): add / edit / delete, stock counts. Stock starts untracked until an admin sets it, then counts down on sale. Low stock (5 or fewer) and out of stock warnings show on Sell and Dashboard.
 - Logo: transparent PNG, no background. Black monochrome logo on the receipt (prints black on white on the Xprinter XP-80T), colour logo in dark mode, black logo in light mode. No "YUMARIB PRINTS" text next to the logo, the logo itself says it.
@@ -42,6 +42,9 @@ There is no automatic backup in this static version. To keep a copy of the data,
 
 ## Receipt logo (2026-11-13)
 Website shows the colour PNG logo. Receipt shows logo-grey.png, the same logo converted to greyscale with its black background kept, so the white YP and PRINTS stay visible on white paper and on the Xprinter. The old pure black-and-white transparent logo made the white parts invisible on white, which is why the logo did not show on the receipt.
+
+## Sell groups and totals by category (2026-11-14)
+DI is split in the Sell screen only, so staff do not have to hunt paper and card under one DI pile. Paper A4: A4 Paper, A4 Solid, Special Paper A4, Letterhead Special, Letterhead Normal. Paper A3: A3 Paper, A3 Solid, Special Paper A3. Card A4 250g / 300g / 350g and Card A3 250g / 300g, each with its Solid version. Special Card: Special Card A4, A3, Solid A3. Products still keep category DI in Admin / Products, and all prices are unchanged. Dashboard and Reports totals by category now list every group, even ₦0, plus Jobs created in that period, and a Categories total (before discount) so the rows add up. Old sales stored as DI are split by the same mapping when totals are shown.
 
 ## Logo (receipt, 2026-11-13)
 - Website/header/login: colour PNG logo (logo-color.png, with black background).

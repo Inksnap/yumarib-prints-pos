@@ -61,7 +61,8 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .qty-badge{position:absolute;top:8px;right:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:999px;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 6px}
 .stock-warn{font-size:12px;font-weight:700;color:var(--warn-red)}
 .stock-low{font-size:12px;font-weight:700;color:var(--warn-amber)}
-.cat-DI{border-top-color:#f07a1a}.cat-LargeFormat{border-top-color:#4a8cff}.cat-Borderless{border-top-color:#8a97a0}.cat-UVPrint{border-top-color:#d97a5a}
+.cat-DI{border-top-color:#f07a1a}.cat-LargeFormat{border-top-color:#7b5cff}.cat-Borderless{border-top-color:#8a97a0}.cat-UVPrint{border-top-color:#d97a5a}
+.cat-PaperA4{border-top-color:#f07a1a}.cat-PaperA3{border-top-color:#e86a17}.cat-CardA4250g{border-top-color:#4a8cff}.cat-CardA4300g{border-top-color:#3a7bd5}.cat-CardA4350g{border-top-color:#2f6fb0}.cat-CardA3250g{border-top-color:#8a97a0}.cat-CardA3300g{border-top-color:#6b7a86}.cat-SpecialCard{border-top-color:#d97a5a}
 .cart-panel{position:sticky;top:76px}
 .cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)}
 .qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:800;padding:0}
@@ -380,6 +381,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <button class="btn-ghost btn" id="printReportBtn">Print / Save as PDF</button>
     </div>
     <div id="repSummary" style="margin-top:12px"></div>
+    <div id="repCat" style="margin-top:12px"></div>
     <div id="repTop" style="margin-top:12px"></div>
   </div>
 
@@ -454,9 +456,55 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
 /* ---------- storage ---------- */
 var KEY="yumarib-pos-v1";
 var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null;
-var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#4a8cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
-function catColor(c){var f=CATS.filter(function(x){return x.name===c})[0];return f?f.color:"#f07a1a"}
-function catClass(c){return c==="DI"?"cat-DI":c==="Large Format"?"cat-LargeFormat":c==="Borderless"?"cat-Borderless":"cat-UVPrint"}
+var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#7b5cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
+/* Sell groups: DI is split in the Sell screen, so staff find Paper and Card fast.
+   Paper is A4 separate from A3. Card is separate by grams, A4 separate from A3.
+   Products keep category "DI" in Admin / Products; sellGroup() maps them here,
+   so old sales (stored as DI) split correctly in totals too. Prices unchanged. */
+var SELL_GROUPS=[
+ {name:"Paper A4",label:"Paper A4",color:"#f07a1a"},
+ {name:"Paper A3",label:"Paper A3",color:"#e86a17"},
+ {name:"Card A4 250g",label:"Card A4 250g",color:"#4a8cff"},
+ {name:"Card A4 300g",label:"Card A4 300g",color:"#3a7bd5"},
+ {name:"Card A4 350g",label:"Card A4 350g",color:"#2f6fb0"},
+ {name:"Card A3 250g",label:"Card A3 250g",color:"#8a97a0"},
+ {name:"Card A3 300g",label:"Card A3 300g",color:"#6b7a86"},
+ {name:"Special Card",label:"Special Card",color:"#d97a5a"},
+ {name:"Large Format",label:"Large Format",color:"#7b5cff"},
+ {name:"Borderless",label:"Borderless",color:"#8a97a0"},
+ {name:"UV Print",label:"UV Print",color:"#d97a5a"}
+];
+function sellGroup(p){
+  if(!p)return "DI";
+  if(p.category!=="DI")return p.category;
+  var n=String(p.name||"").trim();
+  var exact={
+    "A4 Paper":"Paper A4","A4 Solid":"Paper A4","Special Paper A4":"Paper A4",
+    "Letterhead Special Paper":"Paper A4","Letterhead Normal Paper":"Paper A4",
+    "A3 Paper":"Paper A3","A3 Solid":"Paper A3","Special Paper A3":"Paper A3",
+    "A4 250g":"Card A4 250g","A4 250g Solid":"Card A4 250g",
+    "A4 300g":"Card A4 300g","A4 300g Solid":"Card A4 300g",
+    "A4 350g":"Card A4 350g","A4 350g Solid":"Card A4 350g",
+    "A3 250g":"Card A3 250g","A3 250g Solid":"Card A3 250g",
+    "A3 300g":"Card A3 300g","A3 300g Solid":"Card A3 300g",
+    "Special Card A4":"Special Card","Special Card A3":"Special Card","Special Card Solid A3":"Special Card"
+  };
+  if(exact[n])return exact[n];
+  if(n.indexOf("Special Card")===0)return "Special Card";
+  if(/^A4 250g/.test(n))return "Card A4 250g";if(/^A4 300g/.test(n))return "Card A4 300g";if(/^A4 350g/.test(n))return "Card A4 350g";
+  if(/^A3 250g/.test(n))return "Card A3 250g";if(/^A3 300g/.test(n))return "Card A3 300g";
+  if(/^A4/.test(n)||/Letterhead/.test(n))return "Paper A4";
+  if(/^A3/.test(n))return "Paper A3";
+  return "DI";
+}
+function displayCategory(it){
+  if(!it)return "DI";
+  if(it.category&&SELL_GROUPS.some(function(g){return g.name===it.category}))return it.category;
+  if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p)return sellGroup(p)}
+  return it.category||"DI";
+}
+function catColor(c){var f=SELL_GROUPS.filter(function(x){return x.name===c})[0];if(f)return f.color;var g=CATS.filter(function(x){return x.name===c})[0];return g?g.color:"#f07a1a"}
+function catClass(c){return "cat-"+String(c||"DI").replace(/[^A-Za-z0-9]/g,"")}
 function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function fmt(n){n=Math.round(Number(n)||0);return "₦"+n.toLocaleString("en-NG")}
 function todayStr(d){d=d||new Date();var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),da=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+da}
@@ -557,9 +605,9 @@ function customerBalance(name){
 }
 /* ---------- sell ---------- */
 function renderCatPills(){
-  var counts={All:state.products.length};CATS.forEach(function(c){counts[c.name]=state.products.filter(function(p){return p.category===c.name}).length});
+  var counts={All:state.products.length};SELL_GROUPS.forEach(function(c){counts[c.name]=state.products.filter(function(p){return sellGroup(p)===c.name}).length});
   var box=$("catPills");box.innerHTML="";
-  [["All","All ("+counts.All+")"]].concat(CATS.map(function(c){return [c.name,c.label+" ("+counts[c.name]+")"]})).forEach(function(pair){
+  [["All","All ("+counts.All+")"]].concat(SELL_GROUPS.map(function(c){return [c.name,c.label+" ("+counts[c.name]+")"]})).forEach(function(pair){
     var b=document.createElement("button");b.className="pill"+(currentCat===pair[0]?" active":"");b.textContent=pair[1];
     b.onclick=function(){currentCat=pair[0];renderCatPills();renderSell()};
     box.appendChild(b);
@@ -569,15 +617,15 @@ function cartQty(pid){var it=cart.filter(function(x){return x.productId===pid})[
 function renderSell(){
   renderCatPills();
   var q=($("sellSearch").value||"").toLowerCase();
-  var list=state.products.filter(function(p){return (currentCat==="All"||p.category===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
+  var list=state.products.filter(function(p){return (currentCat==="All"||sellGroup(p)===currentCat)&&(!q||p.name.toLowerCase().includes(q))});
   var grid=$("productGrid");grid.innerHTML="";
-  if(!list.length)grid.innerHTML='<p class="muted">No products in this category yet. Large Format and UV Print start empty, add them as custom jobs.</p>';
+  if(!list.length)grid.innerHTML='<p class="muted">No products in this group yet. Large Format and UV Print start empty, add them as custom jobs.</p>';
   list.forEach(function(p){
-    var b=document.createElement("button");b.className="tile "+catClass(p.category)+(cartQty(p.id)?" in-cart":"");b.type="button";
+    var b=document.createElement("button");b.className="tile "+catClass(sellGroup(p))+(cartQty(p.id)?" in-cart":"");b.type="button";
     var stockHtml="";
     if(p.stock===0)stockHtml='<div class="stock-warn">Out of stock</div>';
     else if(p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt)stockHtml='<div class="stock-low">Low stock: '+p.stock+' left</div>';
-    b.innerHTML=(cartQty(p.id)?'<span class="qty-badge" title="Tap to type a quantity">'+cartQty(p.id)+'</span>':'')+'<div class="tname">'+esc(p.name)+'</div><div class="tprice">'+fmt(p.price)+'</div><div class="tunit">'+esc(p.unit||"per 1")+' · '+esc(p.category)+'</div>'+stockHtml;
+    b.innerHTML=(cartQty(p.id)?'<span class="qty-badge" title="Tap to type a quantity">'+cartQty(p.id)+'</span>':'')+'<div class="tname">'+esc(p.name)+'</div><div class="tprice">'+fmt(p.price)+'</div><div class="tunit">'+esc(p.unit||"per 1")+' · '+esc(sellGroup(p))+'</div>'+stockHtml;
     b.title=cartQty(p.id)?"Tap to add 1 more. Tap the quantity badge to type a quantity.":"Tap to add to sale";
     b.onclick=function(ev){
       if(ev&&ev.target&&ev.target.classList&&ev.target.classList.contains("qty-badge")){
@@ -599,7 +647,7 @@ function addToCart(p){
   if(p.stock!==null&&p.stock!==undefined&&p.stock<=0){alert("Out of stock.");return}
   var it=cart.filter(function(x){return x.productId===p.id})[0];
   if(it){if(p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}it.qty++}
-  else cart.push({key:uid(),productId:p.id,name:p.name,category:p.category,price:p.price,qty:1});
+  else cart.push({key:uid(),productId:p.id,name:p.name,category:sellGroup(p),price:p.price,qty:1});
   renderSell();
 }
 
@@ -704,7 +752,7 @@ function receiptHtml(s){
   var d=new Date(s.date);
   var logoSrc=(state.shop.logoCustom&&state.shop.logo&&String(state.shop.logo).length>100)?state.shop.logo:LOGO_BLACK_CLIPART_SRC;
   var logo='<div style="text-align:center;margin-bottom:6px"><span class="r-logo"><img src="'+logoSrc+'" alt="Yumarib Prints logo"></span></div>';
-  var items=s.items.map(function(it){return '<div class="r-item"><div class="rline"><span class="r-item-name">'+esc(it.name)+' &times; '+it.qty+'</span><span><strong>'+fmt(it.price*it.qty)+'</strong></span></div><div class="r-item-sub">'+esc(it.category)+' &middot; '+fmt(it.price)+' each</div></div>'}).join("");
+  var items=s.items.map(function(it){return '<div class="r-item"><div class="rline"><span class="r-item-name">'+esc(it.name)+' &times; '+it.qty+'</span><span><strong>'+fmt(it.price*it.qty)+'</strong></span></div><div class="r-item-sub">'+esc(displayCategory(it))+' &middot; '+fmt(it.price)+' each</div></div>'}).join("");
   return '<div class="receipt'+(narrow?" narrow":"")+'">'+logo+
   '<div class="r-shop"><div class="r-shop-no">Receipt '+esc(s.receiptNo)+'</div></div>'+
   '<div class="r-meta">'+
@@ -765,8 +813,18 @@ function renderDashboard(){
   $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
   var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
   $("lowStockBox").innerHTML=low.length?'<div class="warn-box"><strong>Stock warning:</strong> '+low.map(function(p){return esc(p.name)+" ("+(p.stock===0?"out of stock":p.stock+" left")+")"}).join(", ")+'</div>':"";
-  var byCat={};list.forEach(function(s){s.items.forEach(function(it){byCat[it.category]=(byCat[it.category]||0)+it.price*it.qty})});
-  $("catTotals").innerHTML=Object.keys(byCat).length?Object.keys(byCat).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byCat[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
+  /* Totals by category: show EVERY group, even ₦0, so it is never only DI.
+     Old sales stored as DI are split by sellGroup() via displayCategory().
+     Jobs are shown on their own row, they have no product category. */
+  var byCat={};list.forEach(function(s){s.items.forEach(function(it){var k=displayCategory(it);byCat[k]=(byCat[k]||0)+it.price*it.qty})});
+  var catSum=0;var catRows=SELL_GROUPS.map(function(g){var v=byCat[g.name]||0;catSum+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
+  if(byCat["DI"]){catSum+=byCat["DI"];catRows+='<div class="tot-row"><span>DI — Direct Images (old)</span><strong>'+fmt(byCat["DI"])+'</strong></div>'}
+  var jobsToday=state.jobs.filter(function(j){return dateOf(j.created)===d});
+  var jobsTotal=jobsToday.reduce(function(a,j){return a+Number(j.total||0)},0);
+  $("catTotals").innerHTML=catRows+
+    '<div class="tot-row"><span>Jobs ('+jobsToday.length+' job'+(jobsToday.length===1?"":"s")+' created today)</span><strong>'+fmt(jobsTotal)+'</strong></div>'+
+    '<div class="tot-row grand"><span>Categories total (before discount)</span><strong>'+fmt(catSum)+'</strong></div>'+
+    '<p class="muted">Categories add up to the before-discount total. Discount that day: '+fmt(disc)+' · Grand total after discount: '+fmt(grand)+'.</p>';
   var byPay={};list.forEach(function(s){byPay[s.payment]=(byPay[s.payment]||0)+Number(s.paid||0)});
   state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
@@ -921,6 +979,14 @@ function renderReport(){
   var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
   var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
   $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Grand total</span><strong>'+fmt(total)+'</strong></div><div class="tot-row"><span>Collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
+  var byCatR={};list.forEach(function(s){s.items.forEach(function(it){var k=displayCategory(it);byCatR[k]=(byCatR[k]||0)+it.price*it.qty})});
+  var catSumR=0;var catRowsR=SELL_GROUPS.map(function(g){var v=byCatR[g.name]||0;catSumR+=v;return '<div class="tot-row"><span>'+esc(g.label)+'</span><strong>'+fmt(v)+'</strong></div>'}).join("");
+  if(byCatR["DI"]){catSumR+=byCatR["DI"];catRowsR+='<div class="tot-row"><span>DI — Direct Images (old)</span><strong>'+fmt(byCatR["DI"])+'</strong></div>'}
+  var jobsR=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to});
+  var jobsTotalR=jobsR.reduce(function(a,j){return a+Number(j.total||0)},0);
+  $("repCat").innerHTML='<h4>Totals by category (all groups, even ₦0)</h4>'+catRowsR+
+    '<div class="tot-row"><span>Jobs ('+jobsR.length+' in range)</span><strong>'+fmt(jobsTotalR)+'</strong></div>'+
+    '<div class="tot-row grand"><span>Categories total (before discount)</span><strong>'+fmt(catSumR)+'</strong></div>';
   var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=it.price*it.qty})});
   var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
   $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
