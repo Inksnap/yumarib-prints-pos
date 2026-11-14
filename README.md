@@ -10,7 +10,7 @@ A complete single-page POS for Yumarib Prints. One file: `index.html` (all CSS a
 
 ## Honest notes — read this before relying on it
 
-- **Data is saved in this browser only.** Everything (products, sales, jobs, customers, expenses, users, shop settings, logo) is stored in `localStorage` under the key `yumarib-pos-v1`, on that one machine and in that one browser. Clearing browser data, using a different browser, or using a different computer loses / does not show that data.
+- **Data is saved in this browser only, unless the cloud is connected.** Everything (products, sales, jobs, customers, expenses, users, shop settings, logo) is stored in `localStorage` under the key `yumarib-pos-v1`, on that one machine and in that one browser. Clearing browser data, using a different browser, or using a different computer loses / does not show that data — unless Admin > Shop > Cloud backup has been set up (see below), in which case the same data is also saved to Firebase Firestore and comes back after sign-in.
 - **Sales do NOT sync to the Muse web POS online database.** This static app and the online web POS are separate. A sale recorded here will not appear there, and vice versa. If you need shared / synced sales across machines, this static version is not the right tool — use the online POS.
 - **No offline server.** There is no server, no database file, and no background service. It is just a web page that saves to the browser.
 - **Passwords are stored in plain text in localStorage.** That is how this simple static version works. Do not reuse a password you use anywhere else, and do not treat this as secure storage. Only people you trust should have access to the machine / browser profile.
@@ -36,9 +36,32 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 - Logo: transparent PNG, no background. Black monochrome logo on the receipt (prints black on white on the Xprinter XP-80T), colour logo in dark mode, black logo in light mode. No "YUMARIB PRINTS" text next to the logo, the logo itself says it.
 - Admin: Sales (any date, void, reprint), Expenses (net after expenses), Reports (date range, top products, Export CSV for Excel, Print / Save as PDF), Price checker, Customers (balance owed, Who owes us filter, record payment), Users (admin creates users), Shop (shop name, logo upload stored in localStorage, receipt paper width 80mm / 58mm).
 
+## Cloud backup (online database, Firebase Firestore — 2026-11-14)
+
+Chosen cloud: **Firebase Firestore**, not Supabase. Why: the user already has a Google account (info.inksnap@gmail.com), Firestore works from a static GitHub Pages site with only a public web config and no server of our own, it has built-in offline persistence, and the free Spark plan (1 GiB stored, 50k reads/day) is enough for this POS.
+
+How it works in the code: one Firestore document, `pos/yumarib-main`, holds the whole POS state as a JSON string (sales, products, users, jobs, customers, expenses, payments, closings, shop settings, receiptSeq) plus `updatedAt`. `save()` still writes localStorage first, then queues a cloud save (debounced ~800 ms). On startup `initCloud()` signs in anonymously to Firebase, loads the cloud document, and if the cloud copy is newer (or this browser is empty) it replaces the local data and shows the login screen with the cloud users. If this browser is newer, it pushes local data to the cloud. If the internet drops, the POS keeps working from localStorage and syncs when it is back. Cloud sync only runs after the local POS login, and Firestore rules require a Firebase sign-in (anonymous).
+
+**The Firebase project does NOT exist yet.** Creating it needs the user's Google sign-in (info.inksnap@gmail.com) in a browser. Exact steps are in the POS itself, Admin > Shop > Cloud backup, and in the parent agent's report. Short version: console.firebase.google.com > Create project `yumarib-prints-pos` (skip Analytics) > Firestore Database > Create, production mode > Authentication > Anonymous > Enable > Project settings > Web app, copy the `firebaseConfig` > Firestore Rules, paste the rules shown in the POS and Publish > paste the config in Admin > Shop > Cloud backup > Save cloud config > Sync now. The `apiKey` in that config is a public identifier, not a secret password; security is the Firestore rules plus the POS login. Never paste a private service-account key.
+
+Until the cloud is live, use the manual backup in Admin > Shop > Cloud backup: **Download full backup (JSON)** saves the whole state to a file, **Restore from backup file** replaces the browser data with that file (after a confirm). Reports > Export CSV is still there for Excel.
+
+Firestore rules to publish:
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /pos/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+Limit: a Firestore document caps at 1 MiB. If the POS state ever grows past ~900 KB, sync warns and the JSON backup is the fallback; old sales would need archiving then.
+
 ## Backup
 
-There is no automatic backup in this static version. To keep a copy of the data, use Reports → Export CSV regularly, and do not clear the browser's site data for the POS page.
+Until the cloud is connected, there is no automatic backup in this static version. Use Admin > Shop > Download full backup (JSON) regularly, plus Reports → Export CSV, and do not clear the browser's site data for the POS page.
 
 ## Receipt logo (2026-11-13)
 Website shows the colour PNG logo. Receipt shows logo-grey.png, the same logo converted to greyscale with its black background kept, so the white YP and PRINTS stay visible on white paper and on the Xprinter. The old pure black-and-white transparent logo made the white parts invisible on white, which is why the logo did not show on the receipt.

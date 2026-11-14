@@ -439,6 +439,41 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <button class="btn" id="saveShopBtn" style="margin-top:12px">Save shop settings</button>
     <p id="shopSaved" class="ok"></p>
     <p class="muted">Printer: set your Xprinter XP-80T as the Default Printer in Windows, then use Print receipt. Paper width here must match the paper loaded in the printer.</p>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin-top:0">Cloud backup (online database)</h3>
+      <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
+      <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
+      <p class="muted" id="cloudStatusDetail">Paste your Firebase config below (Admin only). The config is stored in this browser only, it is not in the website code.</p>
+      <label>Firebase config (paste the JSON from Firebase, e.g. {"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."})</label>
+      <textarea id="firebaseConfigInput" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}' style="width:100%"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="saveFirebaseConfigBtn">Save cloud config</button>
+        <button class="btn-ghost btn" id="syncNowBtn">Sync now</button>
+        <button class="btn-ghost btn" id="exportBackupBtn">Download full backup (JSON)</button>
+        <button class="btn-ghost btn" id="importBackupBtn">Restore from backup file</button>
+        <input type="file" id="importBackupFile" accept=".json,application/json" style="display:none">
+      </div>
+      <p id="cloudSaved" class="ok"></p>
+      <details><summary>How to set up the cloud (Firebase, free)</summary>
+      <ol>
+        <li>Go to console.firebase.google.com, sign in with info.inksnap@gmail.com, Create project, name it yumarib-prints-pos. You can skip Google Analytics.</li>
+        <li>Build &gt; Firestore Database &gt; Create database, start in production mode, pick a location (e.g. europe-west). </li>
+        <li>Build &gt; Authentication &gt; Get started &gt; Sign-in method &gt; Anonymous &gt; Enable.</li>
+        <li>Project settings (gear) &gt; Your apps &gt; Web app (&lt;/&gt;), nickname yumarib-pos, Register app, copy the firebaseConfig object.</li>
+        <li>In Firestore &gt; Rules, paste the rules below and Publish. They allow only signed-in (anonymous) users to read/write the one POS document, no public access.</li>
+        <li>Back here, paste the config above, tap Save cloud config, then Sync now. Then clear Chrome data as a test, open the POS, sign in, and your sales should come back.</li>
+      </ol>
+      <pre style="white-space:pre-wrap;font-size:12px">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /pos/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}</pre>
+      <p class="muted">The apiKey in a Firebase web config is a public identifier, not a secret password. Security is the Firestore rules above plus your POS login. Do not paste any private service-account key here.</p>
+      </details>
+    </div>
   </div>
 </section>
 </main>
@@ -587,7 +622,105 @@ function load(){
     seedProducts().forEach(function(sp){if(!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
   }catch(e){state=defaultState()}
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}}
+function save(){try{state.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}queueCloudSync()}
+
+/* ---------- cloud backup: Firebase Firestore (free, no server) ----------
+   Why Firebase, not Supabase: the user already has a Google account
+   (info.inksnap@gmail.com), Firestore works from a static GitHub Pages
+   site with only a public web config, it has built-in offline persistence,
+   and the free Spark plan is enough for a POS (1 GiB stored, 50k reads/day).
+   The config is NOT in this file. Admin pastes it in Admin > Shop > Cloud
+   backup; it is stored in this browser only, under yumarib-firebase-config.
+   Until then cloudStatus stays "Not set up yet" and the POS works exactly
+   as before, from localStorage, plus the manual JSON backup below.
+   Data model: one Firestore document, pos/yumarib-main, holding the whole
+   POS state as a JSON string (sales, products, users, jobs, customers,
+   expenses, payments, closings, shop settings, receiptSeq) plus updatedAt.
+   One doc keeps it simple and atomic for a single shop; Firestore docs
+   cap at 1 MiB, so if state ever grows past ~900 KB the sync warns and
+   the JSON backup is the fallback. Sync only runs after the local POS
+   login, and Firestore rules require an (anonymous) Firebase sign-in. */
+var FIREBASE_CONFIG_KEY="yumarib-firebase-config";
+var CLOUD_DOC="yumarib-main";
+var cloudDb=null,cloudAuth=null,cloudReady=false,cloudTimer=null,cloudBusy=false,cloudApplied=false;
+function getFirebaseConfig(){try{var raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(!raw)return null;var c=JSON.parse(raw);if(!c||!c.apiKey||!c.projectId||!c.appId)return null;return c}catch(e){return null}}
+function cloudSetStatus(s,d){cloudStatusText=s;var el=$("cloudStatus");if(el)el.textContent=s;var el2=$("cloudStatusDetail");if(el2&&d)el2.textContent=d}
+var cloudStatusText="Not set up yet";
+function queueCloudSync(){if(!getFirebaseConfig())return;if(cloudTimer)clearTimeout(cloudTimer);cloudTimer=setTimeout(function(){saveCloud()},800)}
+async function initCloud(){
+  var cfg=getFirebaseConfig();
+  if(!cfg){cloudSetStatus("Not set up yet","Paste your Firebase config in Admin > Shop > Cloud backup. Until then data is in this browser only, use Download full backup (JSON) regularly.");return}
+  if(cloudReady||cloudBusy)return;
+  cloudBusy=true;cloudSetStatus("Connecting to cloud...","");
+  try{
+    var appMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    var authMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+    var app=appMod.getApps&&appMod.getApps().length?appMod.getApps()[0]:appMod.initializeApp(cfg);
+    cloudAuth=authMod.getAuth(app);
+    try{await authMod.signInAnonymously(cloudAuth)}catch(e){}
+    cloudDb=fsMod.getFirestore(app);
+    try{await fsMod.enableIndexedDbPersistence(cloudDb)}catch(e){}
+    cloudReady=true;cloudBusy=false;
+    window.__yumaribCloud={db:cloudDb,saveCloud:saveCloud,loadCloud:loadCloud};
+    cloudSetStatus("Connected to cloud","Online database is connected. Sales save online as well as in this browser.");
+    await loadCloud();
+  }catch(e){cloudBusy=false;cloudSetStatus("Cloud error: "+(e&&e.message?e.message:e),"Check the pasted config and internet, then tap Sync now. The POS still works from this browser.");}
+}
+async function saveCloud(){
+  if(!cloudReady||!cloudDb)return false;
+  try{
+    var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    var payload=JSON.stringify(state);
+    if(payload.length>900000){cloudSetStatus("Connected to cloud — data too large to sync (over ~900 KB)","Use Download full backup (JSON) and clear old sales if needed.");return false}
+    await fsMod.setDoc(fsMod.doc(cloudDb,"pos",CLOUD_DOC),{data:payload,updatedAt:state.updatedAt||Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    cloudSetStatus("Connected to cloud","Last synced "+new Date().toLocaleTimeString()+". Clearing Chrome data will not lose sales.");
+    return true;
+  }catch(e){cloudSetStatus("Cloud sync failed: "+(e&&e.message?e.message:e),"The sale is still saved in this browser. Tap Sync now when internet is back.");return false}
+}
+async function loadCloud(){
+  if(!cloudReady||!cloudDb)return false;
+  try{
+    var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    var snap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",CLOUD_DOC));
+    if(!snap.exists()){await saveCloud();return true}
+    var d=snap.data()||{};if(!d.data)return false;
+    var cloudState=JSON.parse(d.data);
+    var cloudAt=Number(d.updatedAt||cloudState.updatedAt||0),localAt=Number(state.updatedAt||0);
+    var localEmpty=!state.users.length&&!state.sales.length&&!state.jobs.length;
+    if(cloudApplied)return true;
+    if(localEmpty||cloudAt>localAt){
+      state=cloudState;cloudApplied=true;
+      try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
+      cloudSetStatus("Connected to cloud","Cloud data loaded ("+new Date(cloudAt).toLocaleString()+").");
+      if(currentUser){renderAll()}else if(state.users.length){showLogin()}else{showSetup()}
+      return true;
+    }
+    if(localAt>cloudAt){await saveCloud()}
+    cloudApplied=true;return true;
+  }catch(e){cloudSetStatus("Cloud load failed: "+(e&&e.message?e.message:e),"Using this browser's data. Tap Sync now.");return false}
+}
+function downloadBackup(){
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="yumarib-backup-"+todayStr()+".json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+}
+function restoreBackupFile(file){
+  if(!file)return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var data=JSON.parse(r.result);
+      if(!data||!Array.isArray(data.products)||!Array.isArray(data.sales))throw new Error("bad file");
+      if(!confirm("Restore this backup? It will replace the data in this browser (sales, products, users, jobs, customers, expenses)."))return;
+      state=data;state.updatedAt=Date.now();save();queueCloudSync();
+      currentUser=null;cart=[];
+      if(state.users.length)showLogin();else showSetup();
+      alert("Backup restored. Sign in again.");
+    }catch(e){alert("That file is not a Yumarib backup.")}
+  };
+  r.readAsText(file);
+}
 /* ---------- pure logic (also used by tests) ---------- */
 function calcSale(items,discountType,discountValue){
   var sub=items.reduce(function(s,it){return s+it.price*it.qty},0);
@@ -1208,6 +1341,24 @@ $("saveShopBtn").onclick=function(){
   state.shop.paperWidth=document.querySelector('input[name="paper"]:checked').value==="58"?58:80;
   save();$("shopSaved").textContent="Shop settings saved.";renderShop();
 };
+/* Cloud backup buttons (Admin > Shop). Config is stored in this browser only. */
+(function(){
+  var cfgBtn=$("saveFirebaseConfigBtn");if(!cfgBtn)return;
+  var cfgEl=$("firebaseConfigInput");
+  try{var ex=getFirebaseConfig();if(ex)cfgEl.value=JSON.stringify(ex)}catch(e){}
+  cloudSetStatus(getFirebaseConfig()?"Saved — connecting...":"Not set up yet");
+  cfgBtn.onclick=function(){
+    try{var c=JSON.parse(cfgEl.value.trim());if(!c.apiKey||!c.projectId||!c.appId)throw new Error("missing fields");
+      localStorage.setItem(FIREBASE_CONFIG_KEY,JSON.stringify(c));
+      $("cloudSaved").textContent="Cloud config saved in this browser. Syncing now...";
+      cloudReady=false;cloudApplied=false;initCloud();
+    }catch(e){$("cloudSaved").textContent="That is not a valid Firebase config. Paste the whole JSON object from Firebase."}
+  };
+  $("syncNowBtn").onclick=function(){if(!getFirebaseConfig()){$("cloudSaved").textContent="Paste your Firebase config first.";return}$("cloudSaved").textContent="Syncing...";initCloud().then(function(){return saveCloud()}).then(function(ok){$("cloudSaved").textContent=ok?"Synced to cloud.":"Sync failed, see status above."})};
+  $("exportBackupBtn").onclick=downloadBackup;
+  $("importBackupBtn").onclick=function(){$("importBackupFile").click()};
+  $("importBackupFile").addEventListener("change",function(){restoreBackupFile(this.files[0]);this.value=""});
+})();
 
 /* ---------- theme (light / dark) + install to desktop ---------- */
 var THEME_KEY="yumarib-theme";
@@ -1251,6 +1402,7 @@ updateLogos(document.documentElement.getAttribute("data-theme")||"dark");
 function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin()}
 load();
 if(!state.users.length)showSetup();else showLogin();
+initCloud();
 syncPaidDefaults();
 </script>
 </body>
