@@ -137,3 +137,5 @@ a newer shared copy. Status now shows Auth state (signed in anonymously, or
 NOT signed in) and the Firestore error code.
 
 **2026-11-16 fix (auth/api-key-not-valid):** the embedded Firebase config once had its apiKey shown as a masked placeholder, and the Admin config box could save that masked value back as the real key, so Firebase Auth failed. Fixed: the built-in config is restored, the config box now shows the key masked on a separate line only and leaves apiKey blank in the editable box (blank = keep the built-in key), any stored override with a masked/invalid key is ignored and cleared on load, and Admin > Shop has a Reset cloud config button. Reloading the POS alone fixes a machine with the bad override.
+
+- **Products are merged by id across machines (2026-11-16).** Adding a product on any machine saves it locally at once and uploads it to the shared cloud doc; on sync the lists are merged by product id, never replaced wholesale, so a new product survives a reload and appears on the other machine after Sync now. Deleting a product records it so it does not come back from the other machine.

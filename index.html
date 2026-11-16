@@ -506,7 +506,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v36</strong> — if this still says v34 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v37</strong> — if this still says v34 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -713,7 +713,7 @@ function seedProducts(){
   ];
   return P.map(function(r,i){return {id:"seed"+(i+1),name:r[0],category:r[1],price:r[2],unit:r[3],stock:null,lowAt:5}});
 }
-function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0,jobSeq:0,sharedUpdatedAt:0}}
+function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0,jobSeq:0,sharedUpdatedAt:0,deletedProductIds:{}}}
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw){state=defaultState();return}
     state=JSON.parse(raw);
@@ -721,7 +721,7 @@ function load(){
     state.shop=state.shop||{name:"YUMARIB PRINTS",logo:"",paperWidth:80};
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
-    state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;state.sharedUpdatedAt=state.sharedUpdatedAt||0;
+    state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;state.sharedUpdatedAt=state.sharedUpdatedAt||0;state.deletedProductIds=state.deletedProductIds||{};
     /* Old sales have no payments array: build it from payment / paid, so
        split-payment receipt, Dashboard and reports show them correctly. */
     state.sales.forEach(function(s){if(!Array.isArray(s.payments)){s.payments=(Number(s.paid)>0&&s.payment&&s.payment!=="Credit")?[{method:s.payment,amount:Number(s.paid)}]:[]}});
@@ -738,7 +738,7 @@ function load(){
     ensureJobsFromSales();
     /* Add any new seeded products (e.g. Lanyards, UV Pen/Diary/Flask, Pressing of Borderless)
        to POS machines that were set up before they existed. Never touch sales/users. */
-    seedProducts().forEach(function(sp){if(!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
+    seedProducts().forEach(function(sp){if(!state.deletedProductIds[sp.id]&&!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
   }catch(e){state=defaultState()}
 }
 function save(){try{state.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}queueCloudSync()}
@@ -803,16 +803,64 @@ function mergeCloudRecords(localState,doc){
   localState.closings=mergeList(localState.closings,doc.closings,function(r){return r.date},function(a,b){return (new Date(b.savedAt||0)>new Date(a.savedAt||0))?b:a});
   return ((localState.sales||[]).length+(localState.jobs||[]).length)-before;
 }
-function applySharedDoc(localState,shared){
-  if(!shared||!Array.isArray(shared.products))return false;
-  var cloudAt=Number(shared.sharedUpdatedAt||shared.updatedAt||0);
-  if(cloudAt>(localState.sharedUpdatedAt||0)){
-    localState.products=shared.products;localState.users=shared.users||localState.users;
-    localState.shop=shared.shop||localState.shop;localState.sharedUpdatedAt=cloudAt;
-    return true;
-  }
-  return false;
+/* ---------- products / users merge (fix for new products vanishing) ----------
+   ROOT CAUSE (2026-11-16): a new product was saved locally, but the cloud
+   shared doc replaced the WHOLE product list on the next sync:
+   applySharedDoc did localState.products = shared.products whenever the
+   cloud copy looked newer -- and it used sharedUpdatedAt || updatedAt, so
+   a shared doc with sharedUpdatedAt 0/missing was treated as brand-new
+   (its upload time) even though its product list was old. Worse, saveCloud
+   had a "remote is newer" branch that only registered this machine's
+   device id and never uploaded the local products at all, so the next
+   sync then wiped them. Fix: products and users are now MERGED BY ID,
+   never replaced wholesale. A product added on any machine survives a
+   reload and appears on the other machine after sync; a product deleted
+   on one machine stays deleted (tombstone in deletedProductIds). */
+function mergeDeletedIds(a,b){var o={};Object.keys(a||{}).forEach(function(k){o[k]=a[k]});Object.keys(b||{}).forEach(function(k){if(!o[k]||Number(b[k]||0)>Number(o[k]||0))o[k]=b[k]});return o}
+function mergeProducts(local,remote,deleted){
+  var del=deleted||{};var map={},order=[];
+  function put(pr){if(!pr||!pr.id||del[pr.id])return;var ex=map[pr.id];
+    if(!ex){map[pr.id]=pr;order.push(pr.id);return}
+    var aT=Number(ex._syncAt||0),bT=Number(pr._syncAt||0);
+    if(bT>aT){var o={};Object.keys(ex).forEach(function(k){o[k]=ex[k]});Object.keys(pr).forEach(function(k){o[k]=pr[k]});map[pr.id]=o}
+    else{Object.keys(pr).forEach(function(k){if(map[pr.id][k]==null||map[pr.id][k]==="")map[pr.id][k]=pr[k]})}}
+  (local||[]).forEach(put);(remote||[]).forEach(put);
+  return order.map(function(id){return map[id]});
 }
+function mergeUsersById(local,remote){
+  var map={},order=[];
+  function put(u){if(!u||!u.id)return;var ex=map[u.id];
+    if(!ex){map[u.id]=u;order.push(u.id);return}
+    if(Number(u._syncAt||0)>Number(ex._syncAt||0)){var o={};Object.keys(ex).forEach(function(k){o[k]=ex[k]});Object.keys(u).forEach(function(k){o[k]=u[k]});map[u.id]=o}}
+  (local||[]).forEach(put);(remote||[]).forEach(put);
+  return order.map(function(id){return map[id]});
+}
+function applySharedDoc(localState,shared){
+  if(!shared)return false;
+  var changed=false;
+  /* Products / users: merge by id. Never replace the whole list, so a
+     product added on this machine (even offline, even before its first
+     upload) can never be wiped by an older or newer cloud list. */
+  if(Array.isArray(shared.products)){
+    if(shared.deletedProductIds)localState.deletedProductIds=mergeDeletedIds(localState.deletedProductIds||{},shared.deletedProductIds);
+    var merged=mergeProducts(localState.products,shared.products,localState.deletedProductIds||{});
+    if(JSON.stringify(merged)!==JSON.stringify(localState.products)){localState.products=merged;changed=true}
+  }
+  if(Array.isArray(shared.users)){
+    var mu=mergeUsersById(localState.users||[],shared.users);
+    if(JSON.stringify(mu)!==JSON.stringify(localState.users||[])){localState.users=mu;changed=true}
+  }
+  /* Shop settings only: last writer wins, by sharedUpdatedAt alone.
+     Never fall back to updatedAt (the upload time) -- that made an old
+     list with sharedUpdatedAt 0 look brand-new. */
+  var cloudAt=Number(shared.sharedUpdatedAt||0);
+  if(cloudAt>(localState.sharedUpdatedAt||0)){
+    if(shared.shop)localState.shop=shared.shop;
+    localState.sharedUpdatedAt=cloudAt;changed=true;
+  }
+  return changed;
+}
+
 /* ---------- cloud backup: Firebase Firestore (free, no server) ----------
    Why Firebase, not Supabase: the user already has a Google account
    (info.inksnap@gmail.com), Firestore works from a static GitHub Pages
@@ -950,7 +998,7 @@ function ownDevicePayload(){
     sales:ownRecords(state.sales),jobs:ownRecords(state.jobs),payments:ownRecords(state.payments),
     expenses:ownRecords(state.expenses),closings:ownRecords(state.closings),customers:ownRecords(state.customers)};
 }
-function sharedPayload(){return {kind:"shared",sharedUpdatedAt:state.sharedUpdatedAt||0,updatedAt:Date.now(),deviceIds:knownDeviceIds(),products:state.products,users:state.users,shop:state.shop}}
+function sharedPayload(){return {kind:"shared",sharedUpdatedAt:state.sharedUpdatedAt||0,updatedAt:Date.now(),deviceIds:knownDeviceIds(),products:state.products,users:state.users,shop:state.shop,deletedProductIds:state.deletedProductIds||{}}}
 async function saveCloud(){
   if(!cloudReady||!cloudDb)return false;
   try{
@@ -970,8 +1018,19 @@ async function saveCloud(){
       var shSnap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC));
       var remote=parseCloudPayload(shSnap.exists()?shSnap.data():null);
       if(remote&&remote.kind==="shared"&&Number(remote.sharedUpdatedAt||0)>Number(state.sharedUpdatedAt||0)){
+        /* Remote shared copy is newer, but NEVER drop this machine's
+           products/users: merge them into the remote list by id (a
+           product added here offline survives) and upload the merged
+           list, then keep the merged list locally too. */
         var mergedIds={};(remote.deviceIds||[]).concat(knownDeviceIds()).forEach(function(x){if(typeof x==="string")mergedIds[x]=1});
-        remote.deviceIds=Object.keys(mergedIds);remote.updatedAt=Date.now();
+        remote.deviceIds=Object.keys(mergedIds);
+        remote.deletedProductIds=mergeDeletedIds(remote.deletedProductIds||{},state.deletedProductIds||{});
+        remote.products=mergeProducts(remote.products||[],state.products||[],remote.deletedProductIds);
+        remote.users=mergeUsersById(remote.users||[],state.users||[]);
+        remote.sharedUpdatedAt=Math.max(Number(remote.sharedUpdatedAt||0),Number(state.sharedUpdatedAt||0));
+        remote.updatedAt=Date.now();
+        state.products=remote.products;state.users=remote.users;state.deletedProductIds=remote.deletedProductIds;state.sharedUpdatedAt=remote.sharedUpdatedAt;
+        try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
         await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:JSON.stringify(remote),updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
         rememberDeviceIds(remote.deviceIds);
       }else{
@@ -1012,7 +1071,7 @@ async function syncCloud(quiet){
         if(sh){
           if(Array.isArray(sh.deviceIds)&&sh.deviceIds.length){rememberDeviceIds(sh.deviceIds);deviceIds=knownDeviceIds()}
           if(sh.kind==="shared"){if(applySharedDoc(state,sh))changed=true}
-          else if(sh.sales||sh.jobs){legacy=true;var n0=mergeCloudRecords(state,sh);if(n0)changed=true;if(Array.isArray(sh.products)){var sh2={products:sh.products,users:sh.users,shop:sh.shop,sharedUpdatedAt:Number(sh.updatedAt||0)};if(applySharedDoc(state,sh2))changed=true}}
+          else if(sh.sales||sh.jobs){legacy=true;var n0=mergeCloudRecords(state,sh);if(n0)changed=true;if(Array.isArray(sh.products)){var sh2={products:sh.products,users:sh.users,shop:sh.shop,sharedUpdatedAt:Number(sh.sharedUpdatedAt||0),deletedProductIds:sh.deletedProductIds};if(applySharedDoc(state,sh2))changed=true}}
         }
       }
     }catch(e){throw e}
@@ -1829,13 +1888,13 @@ function renderProducts(){
   var list=state.products.filter(function(p){return !q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)});
   $("prodList").innerHTML=list.length?'<table><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>'+list.map(function(p){
     return '<tr><td>'+esc(p.name)+'<br><span class="muted">'+esc(p.unit||"per 1")+'</span></td><td>'+esc(p.category)+'</td><td>'+fmt(p.price)+'</td><td>'+(p.stock===null||p.stock===undefined?"Not tracked":p.stock+(p.stock===0?' <span class="stock-warn">Out of stock</span>':p.stock<=p.lowAt?' <span class="stock-low">Low</span>':""))+'</td><td><button class="btn-ghost btn btn-sm" data-edit="'+p.id+'">Edit</button> <button class="btn-danger btn btn-sm" data-del="'+p.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No products match.</p>';
-  $("prodList").querySelectorAll("[data-del]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this product?"))return;state.products=state.products.filter(function(p){return p.id!==b.dataset.del});touchShared();save();renderProducts();renderSell()}});
+  $("prodList").querySelectorAll("[data-del]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this product?"))return;state.deletedProductIds=state.deletedProductIds||{};state.deletedProductIds[b.dataset.del]=Date.now();state.products=state.products.filter(function(p){return p.id!==b.dataset.del});touchShared();save();renderProducts();renderSell()}});
   $("prodList").querySelectorAll("[data-edit]").forEach(function(b){b.onclick=function(){
     var p=state.products.filter(function(x){return x.id===b.dataset.edit})[0];if(!p)return;
     var name=prompt("Product name",p.name);if(name===null)return;
     var price=Number(prompt("Price (₦)",p.price));if(isNaN(price)||price<0)return;
     var stockRaw=prompt("Stock (blank = not tracked)",p.stock===null||p.stock===undefined?"":p.stock);if(stockRaw===null)return;
-    p.name=name.trim()||p.name;p.price=price;p.stock=stockRaw===""?null:Math.max(0,Number(stockRaw)||0);
+    p.name=name.trim()||p.name;p.price=price;p.stock=stockRaw===""?null:Math.max(0,Number(stockRaw)||0);touchRecord(p);
     touchShared();save();renderProducts();renderSell();
   }});
 }
@@ -1845,7 +1904,7 @@ $("addProdBtn").onclick=function(){
   if(!name){$("prodErr").textContent="Enter a product name.";return}
   if(price<0){$("prodErr").textContent="Price cannot be negative.";return}
   $("prodErr").textContent="";
-  state.products.push({id:uid(),name:name,category:cat,price:price,unit:unit,stock:stockRaw===""?null:Math.max(0,Number(stockRaw)||0),lowAt:5});
+  state.products.push(touchRecord({id:uid(),name:name,category:cat,price:price,unit:unit,stock:stockRaw===""?null:Math.max(0,Number(stockRaw)||0),lowAt:5}));
   touchShared();save();$("prodName").value="";$("prodPrice").value="";$("prodUnit").value="";$("prodStock").value="";renderProducts();renderSell();
 };
 /* ---------- admin ---------- */
@@ -1975,7 +2034,7 @@ $("saveUserBtn").onclick=function(){
   if(u.id===currentUser.id&&u.role==="admin"&&r!=="admin"){$("editUserErr").textContent="You cannot remove your own admin role.";return}
   if(u.role==="admin"&&r!=="admin"&&state.users.filter(function(x){return x.role==="admin"}).length<=1){$("editUserErr").textContent="There must be at least one admin.";return}
   var oldName=u.name,oldUsername=u.username;
-  u.name=n;u.username=un;u.role=r;if(pw)u.password=pw;
+  u.name=n;u.username=un;u.role=r;touchRecord(u);if(pw)u.password=pw;
   /* New name/username updates everywhere it was recorded, so sales by staff,
      Jobs created by, job history By, and cash closings all show the new name
      instead of splitting one person across two names. */
@@ -1990,7 +2049,7 @@ $("addUserBtn").onclick=function(){
   if(!u||!n){$("userErr").textContent="Enter a username and name.";return}
   if(p.length<4){$("userErr").textContent="Password must be at least 4 characters.";return}
   if(state.users.some(function(x){return x.username.toLowerCase()===u.toLowerCase()})){$("userErr").textContent="That username is already taken.";return}
-  $("userErr").textContent="";state.users.push({id:uid(),username:u,name:n,password:p,role:r});touchShared();save();$("newUsername").value="";$("newName").value="";$("newPassword").value="";renderUsers();renderLoginUsers();
+  $("userErr").textContent="";state.users.push(touchRecord({id:uid(),username:u,name:n,password:p,role:r}));touchShared();save();$("newUsername").value="";$("newName").value="";$("newPassword").value="";renderUsers();renderLoginUsers();
 };
 function renderShop(){
   $("shopNameInput").value=state.shop.name||"YUMARIB PRINTS";
