@@ -537,7 +537,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
 service cloud.firestore {
   match /databases/{database}/documents {
     match /pos/{docId} {
-      allow read, write: if request.auth != null;
+      allow get, list, create, update, delete: if request.auth != null;
     }
   }
 }</pre>
@@ -852,7 +852,21 @@ var FIREBASE_CONFIG_KEY="yumarib-firebase-config";
      .data. If that is still there, syncCloud merges it once, then the
      shared/device docs replace it. Firestore rules already allow
      pos/{docId} for signed-in users, so no Firebase console change
-     is needed for the new doc ids. */
+     is needed for the new doc ids.
+   ROOT CAUSE of the 2026-11-16 failure (POS-J38T: "Missing or
+   insufficient permissions", 0 sales synced): the multi-machine
+   sync used getDocs(collection(db,"pos")) -- a collection LIST
+   query to discover device docs -- and initCloud swallowed any
+   anonymous sign-in failure (catch{}), set cloudReady=true anyway,
+   and then ran that list with request.auth == null, which Firestore
+   rejects. FIX: no collection list/query anywhere. The shared doc
+   carries a deviceIds registry, each machine also remembers the
+   device ids it has seen in this browser, and sync reads each
+   device doc with a single getDoc() -- the exact operation the
+   original rules were written for. And sync never runs until
+   anonymous sign-in is VERIFIED (cloudAuth.currentUser non-null);
+   if sign-in fails the status says so plainly instead of
+   pretending to be connected. */
 var SHARED_DOC="yumarib-main";
 var CLOUD_DOC=SHARED_DOC;
 var DEVICE_DOC="device-"+DEVICE_ID;
@@ -860,6 +874,13 @@ var DEVICE_DOC="device-"+DEVICE_ID;
    apiKey is a public web identifier, not a secret password. */
 var DEFAULT_FIREBASE_CONFIG={apiKey:"<redacted>",authDomain:"yumarib-prints-pos.firebaseapp.com",projectId:"yumarib-prints-pos",storageBucket:"yumarib-prints-pos.firebasestorage.app",messagingSenderId:"91644869311",appId:"1:91644869311:web:6f86e8f3009b4b1184a40a"};
 var cloudDb=null,cloudAuth=null,cloudReady=false,cloudTimer=null,cloudBusy=false,cloudSyncBusy=false,cloudApplied=false;
+var cloudAuthUid="",cloudAuthError="";
+var KNOWN_DEVICES_KEY="yumarib-known-devices";
+function getKnownDeviceIds(){try{var raw=localStorage.getItem(KNOWN_DEVICES_KEY);var a=raw?JSON.parse(raw):[];return Array.isArray(a)?a.filter(function(x){return typeof x==="string"&&/^[A-Z0-9]{4}$/.test(x)}):[]}catch(e){return[]}}
+function rememberDeviceIds(list){try{var set={};getKnownDeviceIds().concat(list||[]).forEach(function(x){if(typeof x==="string"&&/^[A-Z0-9]{4}$/.test(x))set[x]=1});set[DEVICE_ID]=1;localStorage.setItem(KNOWN_DEVICES_KEY,JSON.stringify(Object.keys(set)))}catch(e){}}
+function knownDeviceIds(){var ids=getKnownDeviceIds();if(ids.indexOf(DEVICE_ID)<0)ids.push(DEVICE_ID);(state.sales||[]).concat(state.jobs||[]).forEach(function(r){if(r&&r.deviceId&&/^[A-Z0-9]{4}$/.test(r.deviceId)&&ids.indexOf(r.deviceId)<0)ids.push(r.deviceId)});return ids}
+function cloudAuthLine(){return cloudAuthUid?("Auth: signed in anonymously ("+cloudAuthUid.slice(0,8)+"...)"):("Auth: NOT signed in"+(cloudAuthError?(" — "+cloudAuthError):""))}
+function parseCloudPayload(d){if(!d||!d.data)return null;try{return JSON.parse(d.data)}catch(e){return null}}
 var lastSyncCounts={mine:0,other:0,total:0};
 function getFirebaseConfig(){try{var raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(raw){var c=JSON.parse(raw);if(c&&c.apiKey&&c.projectId&&c.appId)return c}}catch(e){}return DEFAULT_FIREBASE_CONFIG}
 function cloudSetStatus(s,d){cloudStatusText=s;var el=$("cloudStatus");if(el)el.textContent=s;var el2=$("cloudStatusDetail");if(el2&&d)el2.textContent=d}
@@ -886,17 +907,36 @@ async function initCloud(){
     var authMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
     var app=appMod.getApps&&appMod.getApps().length?appMod.getApps()[0]:appMod.initializeApp(cfg);
     cloudAuth=authMod.getAuth(app);
-    try{await authMod.signInAnonymously(cloudAuth)}catch(e){}
+    /* VERIFY anonymous sign-in before any Firestore read/write.
+       The old code swallowed sign-in errors and then read Firestore
+       unauthenticated, which Firestore rejects as "Missing or
+       insufficient permissions". If sign-in fails, say so plainly
+       and do NOT set cloudReady. */
+    cloudAuthError="";cloudAuthUid="";
+    var signedIn=false,lastErr=null;
+    for(var attempt=0;attempt<3&&!signedIn;attempt++){
+      try{
+        if(!cloudAuth.currentUser)await authMod.signInAnonymously(cloudAuth);
+        if(cloudAuth.currentUser){signedIn=true;cloudAuthUid=cloudAuth.currentUser.uid||""}
+      }catch(e){lastErr=e}
+      if(!signedIn&&attempt<2)await new Promise(function(r){setTimeout(r,800)});
+    }
+    if(!signedIn){
+      cloudBusy=false;
+      cloudAuthError=lastErr?((lastErr.code||"")+" "+(lastErr.message||lastErr)):"sign-in returned no user";
+      cloudSetStatus("Cloud sign-in failed: "+cloudAuthError,"Anonymous sign-in did not work. In Firebase console (info.inksnap@gmail.com, project yumarib-prints-pos): Build > Authentication > Sign-in method > Anonymous must be Enabled. The POS still works offline from this browser; tap Sync now to try again after it is enabled. "+cloudAuthLine());
+      return;
+    }
     cloudDb=fsMod.getFirestore(app);
     try{await fsMod.enableIndexedDbPersistence(cloudDb)}catch(e){}
     cloudReady=true;cloudBusy=false;
     window.__yumaribCloud={db:cloudDb,saveCloud:saveCloud,loadCloud:syncCloud,syncCloud:syncCloud};
     renderMachineInfo();
-    cloudSetStatus("Connected to cloud","Online database is connected. Sales save online as well as in this browser.");
+    cloudSetStatus("Connected to cloud","Online database is connected. "+cloudAuthLine()+". Sales save online as well as in this browser.");
     await syncCloud();
     if(!window.__yumaribSyncTimer){window.__yumaribSyncTimer=setInterval(function(){if(cloudReady&&!cloudSyncBusy)syncCloud(true)},120000)}
     window.addEventListener("online",function(){if(cloudReady)syncCloud(true)});
-  }catch(e){cloudBusy=false;cloudSetStatus("Cloud error: "+(e&&e.message?e.message:e),"Check the internet, then tap Sync now. The POS still works from this browser.")}
+  }catch(e){cloudBusy=false;cloudSetStatus("Cloud error: "+(e&&e.code?e.code+" — ":"")+(e&&e.message?e.message:e),"Check the internet, then tap Sync now. The POS still works from this browser. "+cloudAuthLine())}
 }
 function ownDevicePayload(){
   /* Claim unclaimed legacy records as this machine's, so they are uploaded
@@ -907,7 +947,7 @@ function ownDevicePayload(){
     sales:ownRecords(state.sales),jobs:ownRecords(state.jobs),payments:ownRecords(state.payments),
     expenses:ownRecords(state.expenses),closings:ownRecords(state.closings),customers:ownRecords(state.customers)};
 }
-function sharedPayload(){return {kind:"shared",sharedUpdatedAt:state.sharedUpdatedAt||0,updatedAt:Date.now(),products:state.products,users:state.users,shop:state.shop}}
+function sharedPayload(){return {kind:"shared",sharedUpdatedAt:state.sharedUpdatedAt||0,updatedAt:Date.now(),deviceIds:knownDeviceIds(),products:state.products,users:state.users,shop:state.shop}}
 async function saveCloud(){
   if(!cloudReady||!cloudDb)return false;
   try{
@@ -916,13 +956,31 @@ async function saveCloud(){
     var devJson=JSON.stringify(dev);
     if(devJson.length>900000){cloudSetStatus("Connected to cloud — this machine's data is too large to sync (over ~900 KB)","Use Download full backup (JSON) and clear old sales if needed.");return false}
     await fsMod.setDoc(fsMod.doc(cloudDb,"pos",DEVICE_DOC),{data:devJson,updatedAt:Date.now(),deviceId:DEVICE_ID,shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    /* Register this machine in the shared doc's deviceIds registry
+       (so other machines can find its device doc with getDoc, no
+       collection list). Read the shared doc first: if another machine
+       has a NEWER shared copy, keep its products/users and only add
+       our device id to its registry, never overwrite it. */
     var sh=sharedPayload();var shJson=JSON.stringify(sh);
     if(shJson.length>900000){cloudSetStatus("Connected to cloud — shop settings too large to sync","Products/users are saved in this browser. Sales on this machine did sync.");return true}
-    await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:shJson,updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    try{
+      var shSnap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC));
+      var remote=parseCloudPayload(shSnap.exists()?shSnap.data():null);
+      if(remote&&remote.kind==="shared"&&Number(remote.sharedUpdatedAt||0)>Number(state.sharedUpdatedAt||0)){
+        var mergedIds={};(remote.deviceIds||[]).concat(knownDeviceIds()).forEach(function(x){if(typeof x==="string")mergedIds[x]=1});
+        remote.deviceIds=Object.keys(mergedIds);remote.updatedAt=Date.now();
+        await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:JSON.stringify(remote),updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+        rememberDeviceIds(remote.deviceIds);
+      }else{
+        await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:shJson,updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+      }
+    }catch(e){
+      await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:shJson,updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    }
     updateSyncCounts();
-    cloudSetStatus("Connected to cloud","Last synced "+new Date().toLocaleTimeString()+". Sales from all machines are merged when they come online.");
+    cloudSetStatus("Connected to cloud","Last synced "+new Date().toLocaleTimeString()+". "+cloudAuthLine()+". Sales from all machines are merged when they come online.");
     return true;
-  }catch(e){cloudSetStatus("Cloud sync failed: "+(e&&e.message?e.message:e),"The sale is still saved in this browser. Tap Sync now when internet is back.");return false}
+  }catch(e){cloudSetStatus("Cloud sync failed: "+(e&&e.code?e.code+" — ":"")+(e&&e.message?e.message:e),"The sale is still saved in this browser. Tap Sync now when internet is back. "+cloudAuthLine());return false}
 }
 /* Full merge sync: download every machine's doc + the shared doc, merge
    by record id into this machine, then upload this machine's own doc.
@@ -933,30 +991,44 @@ async function syncCloud(quiet){
   cloudSyncBusy=true;
   try{
     var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-    var snap=await fsMod.getDocs(fsMod.collection(cloudDb,"pos"));
+    /* Auth check first: never read Firestore unauthenticated. */
+    if(!cloudAuth||!cloudAuth.currentUser){
+      cloudSyncBusy=false;
+      if(!quiet)cloudSetStatus("Cloud sign-in failed: no Firebase user. "+cloudAuthLine(),"Tap Sync now to sign in again. If it keeps failing, Anonymous sign-in must be Enabled in Firebase console (Authentication > Sign-in method > Anonymous).");
+      return false;
+    }
+    /* NO collection list/query here (that is what failed on the real
+       machine). Read the shared doc with a single getDoc, take its
+       deviceIds registry, and read each device doc with getDoc. */
     var changed=false,legacy=false;
-    snap.forEach(function(docSnap){
-      var d=docSnap.data()||{};var payload=null;
-      if(d.data){try{payload=JSON.parse(d.data)}catch(e){payload=null}}
-      if(!payload)return;
-      if(payload.kind==="shared"){if(applySharedDoc(state,payload))changed=true;return}
-      if(payload.kind==="device"){var n=mergeCloudRecords(state,payload);if(n)changed=true;return}
-      /* Legacy whole-state doc (old .data format, no kind): merge its
-         records once, and adopt its products/users/shop as shared if newer. */
-      legacy=true;
-      if(payload.sales||payload.jobs){var n2=mergeCloudRecords(state,payload);if(n2)changed=true}
-      if(Array.isArray(payload.products)){var sh={products:payload.products,users:payload.users,shop:payload.shop,sharedUpdatedAt:Number(payload.updatedAt||0)};if(applySharedDoc(state,sh))changed=true}
-    });
+    var deviceIds=knownDeviceIds();
+    try{
+      var shSnap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC));
+      if(shSnap.exists()){
+        var sh=parseCloudPayload(shSnap.data());
+        if(sh){
+          if(Array.isArray(sh.deviceIds)&&sh.deviceIds.length){rememberDeviceIds(sh.deviceIds);deviceIds=knownDeviceIds()}
+          if(sh.kind==="shared"){if(applySharedDoc(state,sh))changed=true}
+          else if(sh.sales||sh.jobs){legacy=true;var n0=mergeCloudRecords(state,sh);if(n0)changed=true;if(Array.isArray(sh.products)){var sh2={products:sh.products,users:sh.users,shop:sh.shop,sharedUpdatedAt:Number(sh.updatedAt||0)};if(applySharedDoc(state,sh2))changed=true}}
+        }
+      }
+    }catch(e){throw e}
+    for(var i=0;i<deviceIds.length;i++){
+      var docId="device-"+deviceIds[i];
+      var snap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",docId));
+      if(!snap.exists())continue;
+      var payload=parseCloudPayload(snap.data());
+      if(!payload)continue;
+      if(payload.kind==="device"){var n=mergeCloudRecords(state,payload);if(n)changed=true}
+      else if(payload.sales||payload.jobs){legacy=true;var n2=mergeCloudRecords(state,payload);if(n2)changed=true}
+    }
     if(changed){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
-    if(legacy||changed){/* After a legacy merge, the next saveCloud writes
-      this machine's device doc + the shared doc, so the old whole-state
-      doc is no longer the only copy. */}
     var ok=await saveCloud();
-    if(ok&&!quiet)cloudSetStatus("Connected to cloud","Synced "+new Date().toLocaleTimeString()+" — "+lastSyncCounts.total+" sale(s) merged from all machines.");
+    if(ok&&!quiet)cloudSetStatus("Connected to cloud","Synced "+new Date().toLocaleTimeString()+" — "+lastSyncCounts.total+" sale(s) merged from all machines. "+cloudAuthLine());
     if(changed&&currentUser)renderAll();else if(changed&&state.users.length){showLogin()}
     updateSyncCounts();
     cloudSyncBusy=false;return ok;
-  }catch(e){cloudSyncBusy=false;if(!quiet)cloudSetStatus("Cloud load failed: "+(e&&e.message?e.message:e),"Using this browser's data. Tap Sync now.");return false}
+  }catch(e){cloudSyncBusy=false;if(!quiet)cloudSetStatus("Cloud load failed: "+(e&&e.code?e.code+" — ":"")+(e&&e.message?e.message:e),"Using this browser's data. Tap Sync now. "+cloudAuthLine()+". If the error is permission-denied, the Firebase user is not signed in (see Auth above) or the Firestore rules do not allow pos/{docId} for signed-in users.");return false}
 }
 async function loadCloud(){return syncCloud()}
 function downloadBackup(){

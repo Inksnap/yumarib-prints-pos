@@ -121,3 +121,17 @@ Each POS machine gets its own code, e.g. POS-A1B2, shown in Admin > Shop > Cloud
 - The old single-document sync (last writer won, other machine's
   offline sales were lost) is gone. If the old cloud document is still
   there, the first sync with this version merges it once.
+
+## Cloud sync fix (2026-11-16, POS-J38T "Missing or insufficient permissions")
+Root cause: multi-machine sync used `getDocs(collection(db,"pos"))`, a collection
+LIST query to discover device docs, and `initCloud()` swallowed anonymous
+sign-in failures (`catch{}`), set `cloudReady=true` anyway, then read Firestore
+unauthenticated, which Firestore rejects as permission-denied. Fix, code only,
+no Firebase console change needed: sync never runs until anonymous sign-in is
+VERIFIED (`currentUser` non-null, 3 attempts, plain "Cloud sign-in failed"
+status if it fails); the shared doc `pos/yumarib-main` carries a `deviceIds`
+registry and each machine remembers device ids it has seen, and sync reads each
+`pos/device-XXXX` with a single `getDoc()`, never a collection list/query.
+`saveCloud()` reads the shared doc first so registering a machine never wipes
+a newer shared copy. Status now shows Auth state (signed in anonymously, or
+NOT signed in) and the Firestore error code.
