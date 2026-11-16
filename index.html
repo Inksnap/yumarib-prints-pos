@@ -508,6 +508,20 @@ service cloud.firestore {
     <button class="btn-ghost btn" id="receiptClose" style="width:100%;margin-top:8px">Close</button>
   </div>
 </div>
+<!-- DASHBOARD PASSWORD MODAL -->
+<div class="modal-back" id="dashPassModal">
+  <div class="modal">
+    <h3 style="margin-top:0">Dashboard is protected</h3>
+    <p class="muted">Enter the admin password to open the Dashboard.</p>
+    <label>Admin password</label>
+    <input id="dashPassInput" type="password" autocomplete="current-password" placeholder="Admin password">
+    <p id="dashPassErr" class="err"></p>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" id="dashPassOpen" type="button" style="flex:1">Open Dashboard</button>
+      <button class="btn-ghost btn" id="dashPassCancel" type="button" style="flex:1">Cancel</button>
+    </div>
+  </div>
+</div>
 <script>
 "use strict";
 /* ---------- storage ---------- */
@@ -745,8 +759,8 @@ function calcSale(items,discountType,discountValue){
 function canCollectJob(job){return Number(job.balance||0)<=0}
 function closingDiff(expected,counted){return (Number(counted)||0)-(Number(expected)||0)}
 /* ---------- auth ---------- */
-function showSetup(){$("setupScreen").style.display="block";$("loginScreen").style.display="none";$("app").style.display="none"}
-function showLogin(){$("setupScreen").style.display="none";$("loginScreen").style.display="block";$("app").style.display="none";renderLoginUsers()}
+function showSetup(){var _dm=$("dashPassModal");if(_dm)_dm.classList.remove("open");$("setupScreen").style.display="block";$("loginScreen").style.display="none";$("app").style.display="none"}
+function showLogin(){var _dm=$("dashPassModal");if(_dm)_dm.classList.remove("open");$("setupScreen").style.display="none";$("loginScreen").style.display="block";$("app").style.display="none";renderLoginUsers()}
 function showApp(){$("setupScreen").style.display="none";$("loginScreen").style.display="none";$("app").style.display="block";
   $("headerUser").textContent=currentUser.name;$("headerRole").textContent=currentUser.role==="admin"?"ADMIN":"Staff";
   var isAdmin=currentUser.role==="admin";
@@ -789,7 +803,47 @@ function switchTab(name){
   $("view-"+name).classList.add("active");
   if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell")renderSell();
 }
-document.querySelectorAll(".tab").forEach(function(t){t.onclick=function(){switchTab(t.dataset.tab)}});
+/* ---------- Dashboard password: ask for the admin password on every click ---------- */
+function adminUser(){return state.users.filter(function(u){return u.role==="admin"})[0]||null}
+function closeDashboardPassword(){var m=$("dashPassModal");if(m)m.classList.remove("open")}
+function askDashboardPassword(){
+  var a=adminUser();
+  if(!a){switchTab("dashboard");return}
+  $("dashPassInput").value="";$("dashPassErr").textContent="";
+  $("dashPassModal").classList.add("open");
+  setTimeout(function(){$("dashPassInput").focus()},50);
+}
+function tryDashboardPassword(){
+  var a=adminUser();
+  if(!a){closeDashboardPassword();switchTab("dashboard");return}
+  if($("dashPassInput").value===a.password){closeDashboardPassword();switchTab("dashboard")}
+  else{$("dashPassErr").textContent="Wrong password. Try again.";$("dashPassInput").value="";$("dashPassInput").focus()}
+}
+$("dashPassOpen").onclick=tryDashboardPassword;
+$("dashPassCancel").onclick=closeDashboardPassword;
+$("dashPassInput").addEventListener("keydown",function(e){if(e.key==="Enter")tryDashboardPassword();if(e.key==="Escape")closeDashboardPassword()});
+$("dashPassModal").addEventListener("click",function(e){if(e.target===$("dashPassModal"))closeDashboardPassword()});
+document.querySelectorAll(".tab").forEach(function(t){t.onclick=function(){
+  if(t.dataset.tab==="dashboard"&&!$("view-dashboard").classList.contains("active")){askDashboardPassword();return}
+  switchTab(t.dataset.tab);
+}});
+/* ---------- Mouse wheel must never change a number figure ---------- */
+/* In Chrome a focused number input steps up/down on wheel instead of scrolling
+   the page, so a discount or amount typed in can change by accident. This
+   stops that for every number input (amount, discount, quantity, price,
+   width, height, cash received, and inputs added later), and scrolls the
+   page / scrollable box instead, leaving the figure exactly as typed. */
+document.addEventListener("wheel",function(e){
+  var el=e.target;
+  if(!el||el.tagName!=="INPUT"||el.type!=="number")return;
+  e.preventDefault();
+  var v=el.value;
+  el.blur();
+  var dy=e.deltaY||0,dx=e.deltaX||0,n=el,scrolled=false;
+  while(n){if(n.scrollHeight>n.clientHeight+1||n.scrollWidth>n.clientWidth+1){n.scrollTop+=dy;n.scrollLeft+=dx;scrolled=true;break}n=n.parentElement}
+  if(!scrolled)window.scrollBy(dx,dy);
+  if(el.value!==v)el.value=v;
+},{passive:false,capture:true});
 /* ---------- customers ---------- */
 function upsertCustomer(name,phone){
   if(!name)return null;
