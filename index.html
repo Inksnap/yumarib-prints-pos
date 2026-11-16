@@ -140,6 +140,18 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase}
 .receipt .r-void{text-align:center;font-weight:900;font-size:16px;letter-spacing:2px;color:#b3261e;border:2px solid #b3261e;border-radius:6px;padding:4px;margin:8px 0}
 .receipt .r-thanks{text-align:center;font-weight:700;color:#111;margin-top:10px}
 .receipt .r-thanks-sub{text-align:center;font-size:11px;color:#555}
+.job-detail{margin-top:14px}
+.job-detail h4{margin:0 0 6px}
+.job-timeline{width:100%;border-collapse:collapse;margin-top:8px}
+.job-timeline th,.job-timeline td{border-bottom:1px solid var(--border);padding:6px 4px;text-align:left;vertical-align:top;font-size:13px}
+.job-timeline th{font-weight:800}
+.job-kv{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:14px}
+.job-kv div{padding:3px 0}
+.job-kv b{font-weight:800}
+.job-history{color:#111;background:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;padding:10px;max-width:700px;margin:0 auto}
+.job-history h3,.job-history h4{text-align:center;margin:4px 0}
+.job-history table{width:100%;border-collapse:collapse;margin-top:8px}
+.job-history th,.job-history td{border-bottom:1px solid #999;padding:4px;text-align:left;vertical-align:top;font-size:11px}
 #printArea{display:none}
 @media print{
   body{background:#fff}
@@ -148,6 +160,7 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase}
   #printArea{display:block;position:absolute;left:0;top:0;width:100%}
   #printArea .receipt{width:72mm;margin:0 auto;box-shadow:none;border-radius:0;padding:0}
   #printArea .receipt.narrow{width:50mm}
+  #printArea .job-history{width:100%;max-width:100%;padding:0}
   @page{margin:0}
 }
 .warn-box{background:#3a2f10;border:1px solid #8a6d2a;border-radius:var(--radius);padding:12px;color:#f5e6b8}
@@ -346,13 +359,26 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <div><label>Customer name</label><input id="jobName" autocomplete="off"></div>
       <div><label>Customer phone</label><input id="jobPhone" autocomplete="off"></div>
       <div><label>Job description</label><input id="jobDesc" autocomplete="off" placeholder="e.g. 100 flyers, A5"></div>
+      <div><label>Size (optional)</label><input id="jobSize" autocomplete="off" placeholder="e.g. 9 x 15 in, 5 x 7 ft"></div>
+      <div><label>Quantity</label><input id="jobQty" type="number" min="1" step="1" value="1"></div>
       <div><label>Total price (₦)</label><input id="jobTotal" type="number" min="0" step="1"></div>
       <div><label>Deposit paid now (₦)</label><input id="jobDeposit" type="number" min="0" step="1" value="0"></div>
+      <div><label>Deposit payment method</label><select id="jobDepositMethod"><option>Cash</option><option>POS</option><option>Transfer</option><option>None</option></select></div>
     </div>
     <p id="jobErr" class="err"></p>
     <button class="btn" id="addJobBtn" style="margin-top:10px">Add job</button>
   </div>
   <div class="card"><h3 style="margin-top:0">All jobs</h3><div id="jobsList"></div></div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Job history — trace a job</h3>
+    <p class="muted" style="margin-top:0">Tap <strong>History</strong> on any job below to see its full detail and every step with date, time and staff. Tap <strong>Print history</strong> to print that job's history for filing.</p>
+    <div id="jobDetail"></div>
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+      <h4 style="margin:0 0 6px">Print jobs history (date range)</h4>
+      <div class="form-row"><div><label>From</label><input id="jobHistFrom" type="date"></div><div><label>To</label><input id="jobHistTo" type="date"></div></div>
+      <button class="btn" id="printJobsHistoryBtn" style="margin-top:10px">Print jobs history</button>
+      <p class="muted">Prints every job created in that range, with its full detail and history, so jobs can be traced on paper.</p>
+    </div>
+  </div>
 </section>
 
 <!-- PRODUCTS -->
@@ -643,7 +669,7 @@ function seedProducts(){
   ];
   return P.map(function(r,i){return {id:"seed"+(i+1),name:r[0],category:r[1],price:r[2],unit:r[3],stock:null,lowAt:5}});
 }
-function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0}}
+function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0,jobSeq:0}}
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw){state=defaultState();return}
     state=JSON.parse(raw);
@@ -651,7 +677,16 @@ function load(){
     state.shop=state.shop||{name:"YUMARIB PRINTS",logo:"",paperWidth:80};
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
-    state.receiptSeq=state.receiptSeq||0;
+    state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;
+    /* Jobs history: give every old job a job number and a history built from
+       the data already stored (created date, deposit, payments, status), so
+       older jobs can be traced too. New jobs get their history live. */
+    state.jobs.slice().sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){
+      if(!j.jobNo){state.jobSeq=(state.jobSeq||0)+1;j.jobNo="JOB-"+String(state.jobSeq).padStart(4,"0")}
+      else{var n=Number(String(j.jobNo).replace(/\D/g,""))||0;if(n>state.jobSeq)state.jobSeq=n}
+      if(!j.createdBy)j.createdBy="";
+      ensureJobHistory(j);
+    });
     /* Add any new seeded products (e.g. Lanyards, UV Pen/Diary/Flask, Pressing of Borderless)
        to POS machines that were set up before they existed. Never touch sales/users. */
     seedProducts().forEach(function(sp){if(!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
@@ -1261,14 +1296,94 @@ $("saveClosingBtn").onclick=function(){
   var i=state.closings.findIndex(function(c){return c.date===d});if(i>=0)state.closings[i]=rec;else state.closings.push(rec);
   save();renderClosing(d);renderAdmin();
 };
+/* ---------- jobs history (detailed, traceable) ---------- */
+var selectedJobId=null;
+function fmtDT(iso){try{return new Date(iso).toLocaleString()}catch(e){return String(iso||"")}}
+function jobById(id){return state.jobs.filter(function(x){return x.id===id})[0]}
+function addJobHistory(j,action,detail){
+  if(!j)return;
+  j.history=j.history||[];
+  j.history.push({at:new Date().toISOString(),by:currentUser?currentUser.name:"",action:action,detail:detail||""});
+  j.updated=new Date().toISOString();
+}
+function ensureJobHistory(j){
+  if(!j)return;
+  j.history=Array.isArray(j.history)?j.history:[];
+  if(j.history.length)return;
+  var by=j.createdBy||"";
+  j.history.push({at:j.created||j.updated||new Date().toISOString(),by:by,action:"Created",detail:"Total "+fmt(j.total)+", deposit "+fmt(j.deposit||0)+(j.depositMethod?" ("+j.depositMethod+")":"")+", paid "+fmt(j.paid||0)+", balance "+fmt(j.balance||0)+". Status: Pending."});
+  (state.payments||[]).filter(function(p){return p.ref===j.id}).sort(function(a,b){return new Date(a.date)-new Date(b.date)}).forEach(function(p){
+    if(Number(j.deposit||0)>0&&Number(p.amount)===Number(j.deposit))return;
+    j.history.push({at:p.date,by:"",action:"Payment",detail:"Payment "+fmt(p.amount)+" ("+(p.method||"")+") received. Paid "+fmt(j.paid||0)+", balance "+fmt(j.balance||0)+"."});
+  });
+  if(j.status&&j.status!=="Pending")j.history.push({at:j.updated||j.created,by:by,action:"Status changed",detail:"Status is now "+j.status+"."});
+  j.history.sort(function(a,b){return new Date(a.at)-new Date(b.at)});
+}
+function jobMoneyLines(j){
+  return '<div class="job-kv">'+
+  '<div><b>Job no:</b> '+esc(j.jobNo||"")+'</div><div><b>Status:</b> '+esc(j.status)+'</div>'+
+  '<div><b>Customer:</b> '+esc(j.customerName)+'</div><div><b>Phone:</b> '+esc(j.phone||"—")+'</div>'+
+  '<div><b>Job:</b> '+esc(j.description)+'</div><div><b>Size:</b> '+esc(j.size||"—")+' &nbsp; <b>Qty:</b> '+esc(j.qty||1)+'</div>'+
+  '<div><b>Created:</b> '+esc(fmtDT(j.created))+'</div><div><b>Created by:</b> '+esc(j.createdBy||"—")+'</div>'+
+  '<div><b>Last updated:</b> '+esc(fmtDT(j.updated||j.created))+'</div><div><b>Deposit method:</b> '+esc(j.depositMethod||"—")+'</div>'+
+  '<div><b>Total:</b> '+fmt(j.total)+'</div><div><b>Deposit:</b> '+fmt(j.deposit||0)+'</div>'+
+  '<div><b>Paid so far:</b> '+fmt(j.paid)+'</div><div><b>Balance remaining:</b> '+fmt(j.balance)+'</div>'+
+  '</div>';
+}
+function jobTimelineHtml(j){
+  ensureJobHistory(j);
+  if(!j.history.length)return '<p class="muted">No history yet.</p>';
+  return '<table class="job-timeline"><tr><th>Date / time</th><th>By</th><th>Step</th><th>Detail</th></tr>'+
+  j.history.slice().sort(function(a,b){return new Date(a.at)-new Date(b.at)}).map(function(h){
+    return '<tr><td>'+esc(fmtDT(h.at))+'</td><td>'+esc(h.by||"—")+'</td><td><strong>'+esc(h.action)+'</strong></td><td>'+esc(h.detail||"")+'</td></tr>'}).join("")+'</table>';
+  box.querySelectorAll("[data-history]").forEach(function(b){b.onclick=function(){showJobDetail(b.dataset.history)}});
+  box.querySelectorAll("[data-printhist]").forEach(function(b){b.onclick=function(){var j=jobById(b.dataset.printhist);if(j)printJobHistory(j)}});
+}
+function jobDetailHtml(j){
+  return '<div class="job-detail card"><h4>'+esc(j.jobNo||"Job")+' — '+esc(j.customerName)+' ('+esc(j.status)+')</h4>'+jobMoneyLines(j)+
+  '<h4 style="margin-top:12px">History — every step, in order</h4>'+jobTimelineHtml(j)+
+  '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" data-printjob="'+j.id+'">Print history</button>'+
+  '<button class="btn-ghost btn" data-closejobdetail="1">Close</button></div></div>';
+}
+function showJobDetail(id){
+  selectedJobId=id;var j=jobById(id);if(!j)return;
+  $("jobDetail").innerHTML=jobDetailHtml(j);
+  $("jobDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
+  var pb=$("jobDetail").querySelector("[data-printjob]");if(pb)pb.onclick=function(){printJobHistory(j)};
+  var cb=$("jobDetail").querySelector("[data-closejobdetail]");if(cb)cb.onclick=function(){selectedJobId=null;$("jobDetail").innerHTML=""};
+}
+function jobHistoryPrintHtml(j){
+  ensureJobHistory(j);
+  return '<div class="job-history"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Job history</h3>'+
+  '<p style="text-align:center">'+esc(j.jobNo||"")+' · Printed '+esc(fmtDT(new Date().toISOString()))+' by '+esc(currentUser?currentUser.name:"")+'</p>'+
+  '<h4>Job detail</h4>'+jobMoneyLines(j)+
+  '<h4 style="margin-top:10px">History — every step, in order</h4>'+
+  '<table><tr><th>Date / time</th><th>By</th><th>Step</th><th>Detail</th></tr>'+
+  j.history.slice().sort(function(a,b){return new Date(a.at)-new Date(b.at)}).map(function(h){
+    return '<tr><td>'+esc(fmtDT(h.at))+'</td><td>'+esc(h.by||"—")+'</td><td><strong>'+esc(h.action)+'</strong></td><td>'+esc(h.detail||"")+'</td></tr>'}).join("")+'</table>'+
+  '<p style="text-align:center;margin-top:10px">End of history for '+esc(j.jobNo||"")+'</p></div>';
+}
+function printJobHistory(j){if(!j)return;$("printArea").innerHTML=jobHistoryPrintHtml(j);window.print()}
+function printJobsHistoryRange(){
+  var from=$("jobHistFrom").value,to=$("jobHistTo").value;
+  if(!from||!to){alert("Choose a From date and a To date first.");return}
+  var list=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to}).slice().sort(function(a,b){return new Date(a.created)-new Date(b.created)});
+  if(!list.length){alert("No jobs created from "+from+" to "+to+".");return}
+  $("printArea").innerHTML='<div class="job-history"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Jobs history</h3>'+
+  '<p style="text-align:center">'+esc(from)+' to '+esc(to)+' · '+list.length+' job'+(list.length===1?"":"s")+' · Printed '+esc(fmtDT(new Date().toISOString()))+' by '+esc(currentUser?currentUser.name:"")+'</p><hr>'+
+  list.map(function(j){return jobHistoryPrintHtml(j)}).join("<hr>")+'</div>';
+  window.print();
+}
 /* ---------- jobs ---------- */
 function renderJobs(){
   var box=$("jobsList");
   if(!state.jobs.length){box.innerHTML='<p class="muted">No jobs yet.</p>';return}
-  box.innerHTML='<table><tr><th>Customer</th><th>Job</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr>'+
+  box.innerHTML='<table><tr><th>Job no</th><th>Customer</th><th>Job</th><th>Created</th><th>Total</th><th>Deposit</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr>'+
   state.jobs.slice().reverse().map(function(j){
     var can=canCollectJob(j);
-    return '<tr><td>'+esc(j.customerName)+'<br><span class="muted">'+esc(j.phone||"")+'</span></td><td>'+esc(j.description)+'</td><td>'+fmt(j.total)+'</td><td>'+fmt(j.paid)+'</td><td>'+fmt(j.balance)+'</td><td><span class="status st-'+j.status.replace(" ","")+'">'+esc(j.status)+'</span></td><td>'+
+    ensureJobHistory(j);
+    return '<tr><td><strong>'+esc(j.jobNo||"")+'</strong><br><span class="muted">'+esc(j.createdBy||"")+'</span></td><td>'+esc(j.customerName)+'<br><span class="muted">'+esc(j.phone||"")+'</span></td><td>'+esc(j.description)+'<br><span class="muted">'+esc(j.size||"")+(j.qty&&Number(j.qty)!==1?" &times; "+j.qty:"")+'</span></td><td>'+esc(fmtDT(j.created))+'</td><td>'+fmt(j.total)+'</td><td>'+fmt(j.deposit||0)+'<br><span class="muted">'+esc(j.depositMethod||"")+'</span></td><td>'+fmt(j.paid)+'</td><td>'+fmt(j.balance)+'</td><td><span class="status st-'+j.status.replace(" ","")+'">'+esc(j.status)+'</span></td><td>'+
+    '<button class="btn btn-sm" data-history="'+j.id+'">History</button> <button class="btn-ghost btn btn-sm" data-printhist="'+j.id+'">Print history</button><br>'+
     '<select data-status="'+j.id+'" style="width:auto"><option'+(j.status==="Pending"?" selected":"")+'>Pending</option><option'+(j.status==="In Production"?" selected":"")+'>In Production</option><option'+(j.status==="Ready"?" selected":"")+'>Ready</option><option'+(j.status==="Collected"?" selected":"")+'>Collected</option></select> '+
     '<input type="number" min="0" placeholder="Pay ₦" data-payamt="'+j.id+'" style="width:110px"> '+
     '<select data-paymethod="'+j.id+'" style="width:auto"><option>Cash</option><option>POS</option><option>Transfer</option></select> '+
@@ -1279,7 +1394,7 @@ function renderJobs(){
   box.querySelectorAll("[data-status]").forEach(function(sel){sel.onchange=function(){
     var j=state.jobs.filter(function(x){return x.id===sel.dataset.status})[0];if(!j)return;
     if(sel.value==="Collected"&&!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding. Record a payment first.");sel.value=j.status;return}
-    j.status=sel.value;j.updated=new Date().toISOString();save();renderJobs();
+    var oldStatus=j.status;j.status=sel.value;addJobHistory(j,"Status changed","Status changed from "+oldStatus+" to "+sel.value+". Balance "+fmt(j.balance)+".");save();renderJobs();
   }});
   box.querySelectorAll("[data-paybtn]").forEach(function(b){b.onclick=function(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.paybtn})[0];if(!j)return;
@@ -1287,27 +1402,33 @@ function renderJobs(){
     var method=box.querySelector('[data-paymethod="'+j.id+'"]').value;
     if(amt<=0){alert("Enter an amount to record.");return}
     if(amt>j.balance){alert("Amount is more than the balance of "+fmt(j.balance)+".");return}
-    j.paid+=amt;j.balance-=amt;j.updated=new Date().toISOString();
+    j.paid+=amt;j.balance-=amt;
     state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
+    addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received. Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
     save();renderJobs();renderDashboard();
   }});
   box.querySelectorAll("[data-collect]").forEach(function(b){b.onclick=function(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.collect})[0];if(!j)return;
     if(!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding.");return}
-    j.status="Collected";j.updated=new Date().toISOString();save();renderJobs();
+    j.status="Collected";addJobHistory(j,"Collected","Job collected. Paid in full "+fmt(j.paid)+", balance "+fmt(j.balance)+".");save();renderJobs();
   }});
 }
 $("addJobBtn").onclick=function(){
   var name=$("jobName").value.trim(),phone=$("jobPhone").value.trim(),desc=$("jobDesc").value.trim(),total=Number($("jobTotal").value||0),dep=Number($("jobDeposit").value||0);
+  var size=$("jobSize").value.trim(),qty=Math.max(1,Number($("jobQty").value||1)),depMethod=$("jobDepositMethod").value;
   if(!name){$("jobErr").textContent="Enter the customer name.";return}
   if(total<=0){$("jobErr").textContent="Enter a total price above ₦0.";return}
   if(dep<0||dep>total){$("jobErr").textContent="Deposit must be between ₦0 and the total.";return}
   $("jobErr").textContent="";
-  state.jobs.push({id:uid(),customerName:name,phone:phone,description:desc||"Job",total:total,deposit:dep,paid:dep,balance:total-dep,status:"Pending",created:new Date().toISOString(),updated:new Date().toISOString()});
+  state.jobSeq=(state.jobSeq||0)+1;
+  var job={id:uid(),jobNo:"JOB-"+String(state.jobSeq).padStart(4,"0"),customerName:name,phone:phone,description:desc||"Job",size:size,qty:qty,total:total,deposit:dep,depositMethod:depMethod,paid:dep,balance:total-dep,status:"Pending",created:new Date().toISOString(),updated:new Date().toISOString(),createdBy:currentUser?currentUser.name:"",history:[]};
+  job.history.push({at:job.created,by:job.createdBy,action:"Created",detail:"Job created. "+(size?("Size "+size+". "):"")+(qty!==1?("Quantity "+qty+". "):"")+"Total "+fmt(total)+", deposit "+fmt(dep)+" ("+depMethod+"), paid "+fmt(dep)+", balance "+fmt(total-dep)+". Status: Pending."});
+  state.jobs.push(job);
   upsertCustomer(name,phone);save();
-  $("jobName").value="";$("jobPhone").value="";$("jobDesc").value="";$("jobTotal").value="";$("jobDeposit").value=0;
+  $("jobName").value="";$("jobPhone").value="";$("jobDesc").value="";$("jobSize").value="";$("jobQty").value=1;$("jobTotal").value="";$("jobDeposit").value=0;$("jobDepositMethod").value="Cash";
   renderJobs();
 };
+$("printJobsHistoryBtn").onclick=function(){printJobsHistoryRange()};
 /* ---------- products ---------- */
 function renderProducts(){
   var q=($("prodSearch").value||"").toLowerCase();
