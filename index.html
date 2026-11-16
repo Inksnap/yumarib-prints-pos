@@ -327,12 +327,10 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <input id="dashDate" type="date" style="width:auto">
   </div>
   <div class="grid6" style="margin-top:12px">
-    <div class="card stat"><div class="label">Grand total</div><div class="value" id="dGrand">₦0</div></div>
+    <div class="card stat"><div class="label">Total collected</div><div class="value" id="dGrand">₦0</div></div>
     <div class="card stat"><div class="label">Sales</div><div class="value" id="dSales">0</div></div>
     <div class="card stat"><div class="label">Collected so far</div><div class="value" id="dCollected">₦0</div></div>
     <div class="card stat"><div class="label">Still owed</div><div class="value" id="dOwed">₦0</div></div>
-    <div class="card stat"><div class="label">Before discount</div><div class="value" id="dBefore">₦0</div></div>
-    <div class="card stat"><div class="label">Discounts given</div><div class="value" id="dDiscounts">₦0</div></div>
   </div>
   <div id="lowStockBox" style="margin-top:12px"></div>
   <div class="grid2" style="margin-top:12px">
@@ -506,7 +504,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v40</strong> — if this still says v38 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v41</strong> — if this still says v38 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -664,17 +662,15 @@ function displayCategory(it){
    Only the four real categories show in totals: DI, Large Format, Borderless, UV Print.
    Sell screen still shows the Paper/Card split. */
 function totalCategory(it){var c=displayCategory(it);return CATS.some(function(g){return g.name===c})?c:"DI"}
-/* Totals by category = MONEY COLLECTED (2026-11-16, user request): each
-   category shows only the money actually collected for it, not the total
-   sold. For each sale, the amount paid so far is shared across its
-   categories in proportion to their gross line amounts, with whole-naira
+/* Totals by category = MONEY COLLECTED ONLY (2026-11-16, user request):
+   each category shows only the money actually collected for it, not the
+   total sold. For each sale, the amount paid so far is shared across its
+   categories in proportion to their line amounts, with whole-naira
    rounding given to the largest shares so the rows add up exactly to the
-   money collected. Discount is never counted as collected money and is
-   never added into any category total. An unpaid balance counts as N0
-   collected. Example: DI N1000 + UV N500, subtotal N1500, discounted
-   price N1350 (discount N150), paid N1000 so far -> DI N667 + UV N333
+   money collected. An unpaid balance counts as N0 collected. Example:
+   DI N1000 + UV N500, paid N1000 so far -> DI N667 + UV N333
    = N1000 collected. Pay the remaining N350 later and it becomes
-   DI N900 + UV N450 = N1350 collected. */
+   DI N900 + UV N450 = N1350 collected. No other amount is added here. */
 /* Line total: Large Format / Custom Job items are flat amounts typed by staff.
    Quantity does NOT change their amount, so their line total is the typed
    price itself, not price x qty. Every other item is price x qty. */
@@ -686,15 +682,15 @@ function saleCollected(s){
 }
 function catTotalsCollected(list){
   var byCat={};CATS.forEach(function(g){byCat[g.name]=0});
-  var discTotal=0,soldTotal=0,toPayTotal=0,collectedTotal=0,balanceTotal=0;
+  var collectedTotal=0,balanceTotal=0;
   (list||[]).forEach(function(s){
     var items=s.items||[];if(!items.length)return;
     var sub=items.reduce(function(a,it){return a+lineTotal(it)},0);
     if(sub<=0)return;
-    var disc=Math.min(Math.max(Number(s.discount||0),0),sub);disc=Math.round(disc);discTotal+=disc;
+    var disc=Math.min(Math.max(Number(s.discount||0),0),sub);disc=Math.round(disc);
     var toPay=Number(s.total);if(!(toPay>0))toPay=sub-disc;toPay=Math.round(toPay);
     var paid=Math.min(Math.max(Math.round(saleCollected(s)),0),toPay);
-    soldTotal+=sub;toPayTotal+=toPay;collectedTotal+=paid;balanceTotal+=Math.max(0,toPay-paid);
+    collectedTotal+=paid;balanceTotal+=Math.max(0,toPay-paid);
     if(paid<=0)return;
     var gross={};items.forEach(function(it){var c=totalCategory(it);gross[c]=(gross[c]||0)+lineTotal(it)});
     var cats=Object.keys(gross),floors={},fracs=[],used=0;
@@ -705,7 +701,7 @@ function catTotalsCollected(list){
     cats.forEach(function(c){byCat[c]=(byCat[c]||0)+floors[c]});
   });
   var catSum=CATS.reduce(function(a,g){return a+(byCat[g.name]||0)},0);
-  return {byCat:byCat,disc:discTotal,sold:soldTotal,toPay:toPayTotal,collected:collectedTotal,balance:balanceTotal,catSum:catSum};
+  return {byCat:byCat,collected:collectedTotal,balance:balanceTotal,catSum:catSum};
 }
 function catColor(c){var f=SELL_GROUPS.filter(function(x){return x.name===c})[0];if(f)return f.color;var g=CATS.filter(function(x){return x.name===c})[0];return g?g.color:"#f07a1a"}
 function catClass(c){return "cat-"+String(c||"DI").replace(/[^A-Za-z0-9]/g,"")}
@@ -1706,35 +1702,28 @@ function salesOn(date){return state.sales.filter(function(s){return dateOf(s.dat
 function renderDashboard(){
   var d=$("dashDate").value||todayStr();$("dashDate").value=d;
   var list=salesOn(d);
-  var grand=list.reduce(function(a,s){return a+Number(s.total||0)},0);
-  var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
+  var collected=list.reduce(function(a,s){return a+saleCollected(s)},0);
   var owed=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return j.source!=="sale"&&dateOf(j.created)===d}).reduce(function(a,j){return a+Number(j.balance||0)},0);
-  var before=list.reduce(function(a,s){return a+Number(s.subtotal||0)},0);
-  var disc=list.reduce(function(a,s){return a+Number(s.discount||0)},0);
-  $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
+  $("dGrand").textContent=fmt(collected);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);
   var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
   $("lowStockBox").innerHTML=low.length?'<div class="warn-box"><strong>Stock warning:</strong> '+low.map(function(p){return esc(p.name)+" ("+(p.stock===0?"out of stock":p.stock+" left")+")"}).join(", ")+'</div>':"";
-  /* Totals by category BEFORE discount: only DI, Large Format, Borderless, UV Print, even ₦0.
+  /* Totals by category = MONEY COLLECTED ONLY: only DI, Large Format, Borderless, UV Print, even ₦0.
      Paper/Card split groups and Lanyards count back into DI via totalCategory().
-     Discount is NOT split across categories; rows add up to the Subtotal
-     before discount. Discount is shown separately below.
+     Rows add up to the money collected. Nothing else is added here.
      Jobs are shown on their own row, they have no product category. */
-  var catCol=catTotalsCollected(list);var byCat=catCol.byCat;var disc=catCol.disc;
+  var catCol=catTotalsCollected(list);var byCat=catCol.byCat;
   var catSum=catCol.catSum;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsToday=state.jobs.filter(function(j){return dateOf(j.created)===d});
   var jobsCollected=jobsToday.reduce(function(a,j){return a+Math.max(0,Number(j.paid||0))},0);
   $("catTotals").innerHTML=catRows+
     '<div class="tot-row"><span>Jobs collected ('+jobsToday.length+' job'+(jobsToday.length===1?"":"s")+' created today, paid so far)</span><strong>'+fmt(jobsCollected)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSum)+'</strong></div>'+
-    '<div class="tot-row"><span>Total sold (before discount)</span><strong>'+fmt(catCol.sold)+'</strong></div>'+
-    '<div class="tot-row"><span>Discount</span><strong>-'+fmt(disc)+'</strong></div>'+
-    '<div class="tot-row"><span>Amount to pay (after discount)</span><strong>'+fmt(catCol.toPay)+'</strong></div>'+
     '<div class="tot-row"><span>Balance still owed</span><strong>'+fmt(catCol.balance)+'</strong></div>'+
-    '<p class="muted">Category amounts are money collected, not total sold. Discount is never counted as collected money. Total sold '+fmt(catCol.sold)+' - Discount '+fmt(disc)+' = Amount to pay '+fmt(catCol.toPay)+'. Amount to pay - Balance owed '+fmt(catCol.balance)+' = Money collected '+fmt(catSum)+'. Jobs collected is paid so far on jobs created today; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
+    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid. Jobs collected is paid so far on jobs created today; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
   var byPay={};list.forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
   state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
-  var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+Number(s.total||0)});
+  var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+saleCollected(s)});
   $("staffTotals").innerHTML=Object.keys(byStaff).length?Object.keys(byStaff).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byStaff[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
   renderClosing(d);
   var ts=$("todaySales");
@@ -1976,20 +1965,17 @@ function renderReport(){
   $("repFrom").value=from;$("repTo").value=to;
   var list=state.sales.filter(function(s){return !s.voided&&dateOf(s.date)>=from&&dateOf(s.date)<=to});
   var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
-  var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
-  $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Grand total</span><strong>'+fmt(total)+'</strong></div><div class="tot-row"><span>Collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
-  var catColR=catTotalsCollected(list);var byCatR=catColR.byCat;var discR=catColR.disc;
+  var collected=list.reduce(function(a,s){return a+saleCollected(s)},0);
+  $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Total collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
+  var catColR=catTotalsCollected(list);var byCatR=catColR.byCat;
   var catSumR=catColR.catSum;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   var jobsR=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to});
   var jobsCollectedR=jobsR.reduce(function(a,j){return a+Math.max(0,Number(j.paid||0))},0);
   $("repCat").innerHTML='<h4>Totals by category (money collected — DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
     '<div class="tot-row"><span>Jobs collected ('+jobsR.length+' in range, paid so far)</span><strong>'+fmt(jobsCollectedR)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSumR)+'</strong></div>'+
-    '<div class="tot-row"><span>Total sold (before discount)</span><strong>'+fmt(catColR.sold)+'</strong></div>'+
-    '<div class="tot-row"><span>Discount</span><strong>-'+fmt(discR)+'</strong></div>'+
-    '<div class="tot-row"><span>Amount to pay (after discount)</span><strong>'+fmt(catColR.toPay)+'</strong></div>'+
     '<div class="tot-row"><span>Balance still owed</span><strong>'+fmt(catColR.balance)+'</strong></div>'+
-    '<p class="muted">Category amounts are money collected, not total sold. Discount is never counted as collected money. Total sold '+fmt(catColR.sold)+' - Discount '+fmt(discR)+' = Amount to pay '+fmt(catColR.toPay)+'. Amount to pay - Balance owed '+fmt(catColR.balance)+' = Money collected '+fmt(catSumR)+'. Jobs collected is paid so far on jobs in range; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
+    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid. Jobs collected is paid so far on jobs in range; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
   var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=lineTotal(it)})});
   var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
   $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
