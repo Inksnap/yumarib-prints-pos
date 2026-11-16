@@ -250,7 +250,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
             <div class="product-grid" id="productGrid"></div>
 <div class="card" id="lfCalcCard" style="margin-bottom:12px">
         <h3 style="margin:0 0 4px">Large Format</h3>
-        <p class="muted" style="margin:0 0 8px">1. Choose the type. 2. Type the size. 3. Type the quantity. 4. Type the price yourself. Then tap Add to sale.</p>
+        <p class="muted" style="margin:0 0 8px">1. Choose the type. 2. Type the size. 3. Type the quantity. 4. Type the price yourself. Quantity does not change the amount. The amount you type is the total for this job. Then tap Add to sale.</p>
         <div class="pay-pills" id="lfTypePills">
           <button class="pill active" data-lf="Flex" type="button">Flex</button>
           <button class="pill" data-lf="SAV Print and Cut" type="button">SAV Print and Cut</button>
@@ -268,7 +268,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       </div>
       <div class="card" id="customJobCard" style="margin-top:12px">
         <h3 style="margin:0 0 4px">Custom job</h3>
-        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. 1. Choose the type. 2. Type the size. 3. Type the quantity. 4. Type the price yourself. Then tap Add custom job to sale.</p>
+        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. 1. Choose the type. 2. Type the size. 3. Type the quantity. 4. Type the price yourself. Quantity does not change the amount. The amount you type is the total for this job. Then tap Add custom job to sale.</p>
         <div class="form-row">
           <div><label>Job type</label><select id="customType"><option value="SAV Print and Cut" selected>SAV Print and Cut</option><option value="SAV Print Only">SAV Print Only</option><option value="Flex">Flex</option><option value="Other">Other</option></select></div>
           <div id="customOtherWrap" style="display:none"><label>Job name</label><input id="customOtherName" value="Custom job" placeholder="Job name"></div>
@@ -648,16 +648,20 @@ function totalCategory(it){var c=displayCategory(it);return CATS.some(function(g
    categories in proportion to their amounts, so the category totals add up
    exactly to the grand total after discount. Rounding is fixed per sale by
    putting any ₦1 remainder on the largest line. */
+/* Line total: Large Format / Custom Job items are flat amounts typed by staff.
+   Quantity does NOT change their amount, so their line total is the typed
+   price itself, not price x qty. Every other item is price x qty. */
+function lineTotal(it){return it&&it.flatAmount?Math.round(Number(it.price||0)):Math.round(Number(it.price||0)*Number(it.qty||0))}
 function catTotalsAfterDiscount(list){
   var byCat={};CATS.forEach(function(g){byCat[g.name]=0});
   var discTotal=0;
   (list||[]).forEach(function(s){
     var items=s.items||[];if(!items.length)return;
-    var sub=items.reduce(function(a,it){return a+Number(it.price||0)*Number(it.qty||0)},0);
+    var sub=items.reduce(function(a,it){return a+lineTotal(it)},0);
     if(sub<=0)return;
     var disc=Math.min(Math.max(Number(s.discount||0),0),sub);disc=Math.round(disc);discTotal+=disc;
     var target=Math.round(sub-disc);
-    var nets=items.map(function(it){var raw=Number(it.price||0)*Number(it.qty||0);return {k:totalCategory(it),net:Math.round(raw-raw*disc/sub)}});
+    var nets=items.map(function(it){var raw=lineTotal(it);return {k:totalCategory(it),net:Math.round(raw-raw*disc/sub)}});
     var netSum=nets.reduce(function(a,n){return a+n.net},0);
     var diff=target-netSum;
     if(diff!==0){var idx=0;nets.forEach(function(n,i){if(n.net>nets[idx].net)idx=i});nets[idx].net+=diff}
@@ -822,7 +826,7 @@ function restoreBackupFile(file){
 }
 /* ---------- pure logic (also used by tests) ---------- */
 function calcSale(items,discountType,discountValue){
-  var sub=items.reduce(function(s,it){return s+it.price*it.qty},0);
+  var sub=items.reduce(function(s,it){return s+lineTotal(it)},0);
   var disc=discountType==="percent"?sub*(Number(discountValue)||0)/100:(Number(discountValue)||0);
   if(disc<0)disc=0;if(disc>sub)disc=sub;disc=Math.round(disc);
   return {subtotal:sub,discount:disc,total:sub-disc};
@@ -1003,7 +1007,9 @@ function renderCart(){
   $("cartEmpty").style.display=cart.length?"none":"block";
   cart.forEach(function(it){
     var row=document.createElement("div");row.className="cart-line";
-    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">Price collected: </span><input type="number" class="price-input" min="0" step="1" value="'+it.price+'" aria-label="Price collected for '+esc(it.name)+'"><span class="muted"> each</span>'+(it.manualPrice?' <span class="muted" style="color:var(--accent);font-weight:800">\u00b7 collected</span>':'')+'</div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><input type="number" class="qty-input" min="0" step="1" value="'+it.qty+'" aria-label="Quantity for '+esc(it.name)+'"><button class="qty-btn" data-a="plus">+</button><strong class="line-total" style="min-width:70px;text-align:right">'+fmt(it.price*it.qty)+'</strong></div>';
+    var _priceLabel=it.flatAmount?'Amount: ':'Price collected: ';
+    var _eachLabel=it.flatAmount?'':' each';
+    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+_priceLabel+'</span><input type="number" class="price-input" min="0" step="1" value="'+it.price+'" aria-label="Price collected for '+esc(it.name)+'"><span class="muted">'+_eachLabel+'</span>'+(it.manualPrice?' <span class="muted" style="color:var(--accent);font-weight:800">\u00b7 collected</span>':'')+'</div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><input type="number" class="qty-input" min="0" step="1" value="'+it.qty+'" aria-label="Quantity for '+esc(it.name)+'"><button class="qty-btn" data-a="plus">+</button><strong class="line-total" style="min-width:70px;text-align:right">'+fmt(lineTotal(it))+'</strong></div>';
     row.querySelector('[data-a="minus"]').onclick=function(){it.qty--;if(it.qty<=0)cart=cart.filter(function(x){return x!==it});renderSell()};
     row.querySelector('[data-a="plus"]').onclick=function(){
       var p=state.products.filter(function(x){return x.id===it.productId})[0];
@@ -1017,7 +1023,7 @@ function renderCart(){
         var v=Math.floor(Number(qin.value)||0);
         if(prod&&prod.stock!==null&&prod.stock!==undefined&&v>prod.stock){v=prod.stock;qin.value=String(v)}
         it.qty=v;
-        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(it.price*it.qty);
+        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(lineTotal(it));
         refreshCartTotals();
       });
       qin.addEventListener('change',function(){
@@ -1039,7 +1045,7 @@ function renderCart(){
         if(v<0){v=0;pin.value="0"}
         it.price=v;
         it.manualPrice=(v!==origPrice);
-        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(it.price*it.qty);
+        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(lineTotal(it));
         refreshCartTotals();
       });
       pin.addEventListener('change',function(){
@@ -1068,7 +1074,7 @@ $("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touc
    Like the first version: 1. Choose the type. 2. Type the size.
    3. Type the quantity. 4. Type the price yourself. Then Add to sale.
    There is no calculated price and no guide price anywhere here.
-   The total is only the typed price x the typed quantity.
+      The amount is only the typed price itself. Quantity never changes it.
    Added items have category "Large Format" (or the category picked on the
    Custom Job card), so they count under Large Format in Dashboard / Reports
    totals and show on the receipt. */
@@ -1100,11 +1106,11 @@ $("addCustomBtn").onclick=function(){
   $("customErr").textContent="";
   if(type==="Other"){
     var nameO=($("customOtherName").value||"Custom job").trim();
-    cart.push({key:uid(),productId:null,name:nameO+" "+w+" x "+h,category:cat,price:price,qty:qty,manualPrice:true});
+    cart.push({key:uid(),productId:null,name:nameO+" "+w+" x "+h,category:cat,price:price,qty:qty,manualPrice:true,flatAmount:true});
   }else{
     var name=lfName(type,w,h);
     if(!name){$("customErr").textContent="Enter width and height, e.g. SAV Print and Cut 9 and 15.";return}
-    cart.push({key:uid(),productId:null,name:name,category:cat,price:price,qty:qty,manualPrice:true});
+    cart.push({key:uid(),productId:null,name:name,category:cat,price:price,qty:qty,manualPrice:true,flatAmount:true});
   }
   $("customPrice").value="";
   renderSell();
@@ -1122,9 +1128,9 @@ function renderLfSummary(){
     box.innerHTML='<p class="muted" style="margin:0">Type the size, quantity and price, then tap Add to sale.</p>';
     $("addLfBtn").disabled=true;return;
   }
-  box.innerHTML='<div class="tot-row"><span>'+esc(name)+'</span><strong>'+fmt(price)+' each</strong></div>'+
-    '<div class="tot-row"><span>Quantity</span><strong>'+qty+'</strong></div>'+
-    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(price*qty)+'</strong></div>';
+  box.innerHTML='<div class="tot-row"><span>'+esc(name)+'</span><strong>'+fmt(price)+'</strong></div>'+
+    '<div class="tot-row"><span>Quantity</span><strong>'+qty+' (does not change the amount)</strong></div>'+
+    '<div class="tot-row grand"><span>Amount</span><strong>'+fmt(price)+'</strong></div>';
   $("addLfBtn").disabled=false;
 }
 document.querySelectorAll("#lfTypePills .pill").forEach(function(b){b.onclick=function(){lfType=b.dataset.lf;document.querySelectorAll("#lfTypePills .pill").forEach(function(x){x.classList.toggle("active",x===b)});renderLfSummary()}});
@@ -1136,7 +1142,7 @@ $("addLfBtn").onclick=function(){
   if(!price){$("lfErr").textContent="Type the price yourself before adding to sale.";return}
   var qty=Math.max(1,Math.floor(Number($("lfQty").value||1)));
   $("lfErr").textContent="";
-  cart.push({key:uid(),productId:null,name:name,category:"Large Format",price:price,qty:qty,manualPrice:true});
+  cart.push({key:uid(),productId:null,name:name,category:"Large Format",price:price,qty:qty,manualPrice:true,flatAmount:true});
   $("lfWidth").value="";$("lfHeight").value="";$("lfCollected").value="";$("lfQty").value=1;
   renderSell();renderLfSummary();
 };
@@ -1153,7 +1159,7 @@ $("chargeBtn").onclick=function(){
   if(currentPay==="Cash"&&cashReceived<paid){alert("Cash received is less than the amount paid.");return}
   state.receiptSeq=(state.receiptSeq||0)+1;
   var sale={id:uid(),receiptNo:"R"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
-    items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice}}),
+    items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice,flatAmount:!!it.flatAmount}}),
     subtotal:calc.subtotal,discountType:$("discountType").value,discountValue:Number($("discountValue").value||0),discount:calc.discount,total:calc.total,
     paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":currentPay,customerName:name||"",phone:phone||"",
     cashReceived:cashReceived,change:currentPay==="Cash"?Math.max(0,cashReceived-paid):0,voided:false};
@@ -1206,7 +1212,7 @@ function receiptHtml(s){
   var d=new Date(s.date);
   var logoSrc=(state.shop.logoCustom&&state.shop.logo&&String(state.shop.logo).length>100)?state.shop.logo:LOGO_BLACK_CLIPART_SRC;
   var logo='<div style="text-align:center;margin-bottom:6px"><span class="r-logo"><img src="'+logoSrc+'" alt="Yumarib Prints logo"></span></div>';
-  var items=s.items.map(function(it){return '<div class="r-item"><div class="rline"><span class="r-item-name">'+esc(it.name)+' &times; '+it.qty+'</span><span><strong>'+fmt(it.price*it.qty)+'</strong></span></div><div class="r-item-sub">'+esc(displayCategory(it))+' &middot; '+fmt(it.price)+' each'+(it.manualPrice?' &middot; Price collected':'')+'</div></div>'}).join("");
+  var items=s.items.map(function(it){return '<div class="r-item"><div class="rline"><span class="r-item-name">'+esc(it.name)+' &times; '+it.qty+'</span><span><strong>'+fmt(lineTotal(it))+'</strong></span></div><div class="r-item-sub">'+esc(displayCategory(it))+' &middot; '+(it.flatAmount?fmt(it.price)+' amount':fmt(it.price)+' each')+(it.manualPrice?' &middot; Price collected':'')+'</div></div>'}).join("");
   return '<div class="receipt'+(narrow?" narrow":"")+'">'+logo+
   '<div class="r-shop"><div class="r-shop-no">Receipt '+esc(s.receiptNo)+'</div></div>'+
   '<div class="r-meta">'+
@@ -1231,7 +1237,7 @@ function receiptHtml(s){
 function receiptText(s){
   var lines=[state.shop.name||"YUMARIB PRINTS","Receipt "+s.receiptNo,new Date(s.date).toLocaleString(),"Cashier: "+(s.cashierName||s.cashier)];
   if(s.customerName)lines.push("Customer: "+s.customerName);
-  s.items.forEach(function(it){lines.push(it.name+" x"+it.qty+" - "+fmt(it.price*it.qty))});
+  s.items.forEach(function(it){lines.push(it.name+" x"+it.qty+" - "+fmt(lineTotal(it)))});
   lines.push("Subtotal: "+fmt(s.subtotal));if(s.discount)lines.push("Discount: -"+fmt(s.discount));
   lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+s.payment,"Thank you! Please come again");
   return lines.join("\n");
@@ -1522,7 +1528,7 @@ function renderReport(){
     '<div class="tot-row"><span>Jobs ('+jobsR.length+' in range)</span><strong>'+fmt(jobsTotalR)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (after discount)</span><strong>'+fmt(catSumR)+'</strong></div>'+
     '<p class="muted">Category amounts are after discount. Discount in range: '+fmt(discR)+' · Grand total after discount: '+fmt(total)+'.</p>';
-  var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=it.price*it.qty})});
+  var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=lineTotal(it)})});
   var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
   $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
   return {from:from,to:to,list:list,total:total};
@@ -1531,7 +1537,7 @@ $("repRun").onclick=renderReport;
 $("exportCsvBtn").onclick=function(){
   var r=renderReport();
   var rows=[["Receipt","Date","Cashier","Customer","Item","Qty","Unit price","Line total","Total","Paid","Balance","Payment"]];
-  r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,it.price*it.qty,s.total,s.paid,s.balance,s.payment])})});
+  r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,lineTotal(it),s.total,s.paid,s.balance,s.payment])})});
   var csv=rows.map(function(row){return row.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="yumarib-report-"+r.from+"-to-"+r.to+".csv";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 };
