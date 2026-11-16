@@ -66,13 +66,28 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .stock-low{font-size:12px;font-weight:700;color:var(--warn-amber)}
 .cat-DI{border-top-color:#f07a1a}.cat-LargeFormat{border-top-color:#7b5cff}.cat-Borderless{border-top-color:#8a97a0}.cat-UVPrint{border-top-color:#d97a5a}
 .cat-PaperA4{border-top-color:#f07a1a}.cat-PaperA3{border-top-color:#e86a17}.cat-CardA4250g{border-top-color:#4a8cff}.cat-CardA4300g{border-top-color:#3a7bd5}.cat-CardA4350g{border-top-color:#2f6fb0}.cat-CardA3250g{border-top-color:#8a97a0}.cat-CardA3300g{border-top-color:#6b7a86}.cat-SpecialCard{border-top-color:#d97a5a}.cat-Lanyards{border-top-color:#f07a1a}
-.cart-panel{position:sticky;top:76px}
-.cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)}
-.qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:800;padding:0}
-.qty-input{width:64px;text-align:center;padding:6px 4px;font-weight:800;font-size:15px}
+/* Current Sale panel: bold and easy to read, with its OWN scroll (user 2026-11-16).
+   The panel is sticky, capped to the viewport height, and scrolls independently,
+   so scrolling on the right side moves this panel at once instead of waiting
+   for the whole page to scroll first. */
+.cart-panel{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;font-size:17px;font-weight:700}
+.cart-panel h2{font-size:26px;font-weight:900}
+.cart-panel label{font-size:17px;font-weight:800;display:block;margin:10px 0 6px}
+.cart-panel .muted{color:var(--text);font-weight:700;font-size:15px;opacity:.85}
+.cart-panel::-webkit-scrollbar{width:10px}
+.cart-panel::-webkit-scrollbar-thumb{background:var(--accent);border-radius:8px}
+.cart-line{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--border2);font-weight:700}
+.cart-line strong{font-size:18px;font-weight:800}
+.cart-line .line-total{font-size:19px;font-weight:900}
+.qty-btn{width:48px;height:56px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-weight:900;font-size:24px;padding:0;flex:none}
+.qty-input{width:88px;height:56px;text-align:center;padding:8px 4px;font-weight:900;font-size:22px;border-width:2px}
 .qty-input:focus{outline:2px solid var(--accent)}
-.tot-row{display:flex;justify-content:space-between;padding:5px 0}
-.tot-row.grand{font-weight:800;font-size:17px;border-top:1px solid var(--border);margin-top:6px;padding-top:10px}
+.tot-row{display:flex;justify-content:space-between;padding:7px 0;font-size:18px;font-weight:800}
+.tot-row.grand{font-weight:900;font-size:24px;border-top:2px solid var(--border);margin-top:6px;padding-top:12px}
+/* Big quantity and discount inputs in the Current Sale panel (user 2026-11-16). */
+.cart-panel #discountValue{height:56px;font-size:22px;font-weight:900;padding:10px 12px;border-width:2px;flex:1;min-width:0}
+.cart-panel #discountType{height:56px;font-size:18px;font-weight:800;width:130px;flex:none}
+.cart-panel #amountPaid,.cart-panel #cashReceived{height:52px;font-size:20px;font-weight:800;border-width:2px}
 .pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent)}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
 @media(max-width:1100px){.grid6{grid-template-columns:repeat(3,1fr)}}
