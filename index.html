@@ -91,10 +91,9 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .tot-row{display:flex;justify-content:space-between;padding:4px 0;font-size:15px;font-weight:800}
 .tot-row.grand{font-weight:900;font-size:19px;border-top:2px solid var(--border);margin-top:4px;padding-top:8px}
 /* Big quantity and discount inputs in the Current Sale panel (user 2026-11-16). */
-.cart-panel #discountValue{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px;flex:1;min-width:0}
+.cart-panel #discountedPrice{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px;flex:1;min-width:0}
 /* Price collected (Large Format / Custom Job): big input, so staff can type it fast. */
 .price-collected{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px}
-.cart-panel #discountType{height:42px;font-size:15px;font-weight:800;width:110px;flex:none}
 .cart-panel #cashReceived{height:42px;font-size:17px;font-weight:800;border-width:2px}
 .pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent)}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
@@ -292,11 +291,9 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <div id="cartItems"></div>
       <p id="cartEmpty" class="muted">No items yet. Tap a product to add it.</p>
       <div style="margin-top:10px">
-        <label>Discount</label>
-        <div style="display:flex;gap:8px">
-          <select id="discountType" style="width:110px"><option value="flat">Flat ₦</option><option value="percent">Percent %</option></select>
-          <input id="discountValue" type="number" min="0" step="1" value="0">
-        </div>
+        <label>Discounted price (₦)</label>
+        <input id="discountedPrice" type="number" min="0" step="1" placeholder="Type the amount they will pay, e.g. 10000">
+        <p class="muted" id="discountHint" style="margin:4px 0 0">Leave empty for no discount. Discount is worked out for you: Subtotal minus the discounted price.</p>
       </div>
       <div style="margin-top:10px">
         <div class="tot-row"><span>Subtotal</span><strong id="cartSubtotal">₦0</strong></div>
@@ -509,7 +506,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v35</strong> — if this still says v34 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v36</strong> — if this still says v34 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -1059,11 +1056,18 @@ function restoreBackupFile(file){
   r.readAsText(file);
 }
 /* ---------- pure logic (also used by tests) ---------- */
-function calcSale(items,discountType,discountValue){
+/* Discounted price (2026-11-16): staff type the final amount the customer
+   will pay, e.g. subtotal 15000, discounted price 10000. The POS works out
+   the discount: Discount = Subtotal - Discounted price (5000 here), and
+   Total = the discounted price. Empty = no discount. A discounted price
+   above the subtotal is clamped: no discount, Total = Subtotal. */
+function calcSale(items,discountedPrice){
   var sub=items.reduce(function(s,it){return s+lineTotal(it)},0);
-  var disc=discountType==="percent"?sub*(Number(discountValue)||0)/100:(Number(discountValue)||0);
-  if(disc<0)disc=0;if(disc>sub)disc=sub;disc=Math.round(disc);
-  return {subtotal:sub,discount:disc,total:sub-disc};
+  if(discountedPrice===null||discountedPrice===undefined||discountedPrice==="")return {subtotal:sub,discount:0,total:sub};
+  var pay=Math.max(0,Math.floor(Number(discountedPrice)||0));
+  if(pay>=sub)return {subtotal:sub,discount:0,total:sub};
+  var disc=Math.round(sub-pay);
+  return {subtotal:sub,discount:disc,total:pay};
 }
 /* ---------- split payment helpers ----------
    A sale can be paid in parts, each part with its own method: Cash, POS
@@ -1284,8 +1288,9 @@ function renderSplitRows(){
   });
 }
 function refreshCartTotals(){
-  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  var calc=calcSale(cart,$("discountedPrice").value);
   $("cartSubtotal").textContent=fmt(calc.subtotal);$("cartDiscount").textContent=fmt(calc.discount);$("cartTotal").textContent=fmt(calc.total);
+  var dh=$("discountHint");if(dh){var dp=$("discountedPrice").value;dh.textContent=(dp!==""&&Number(dp)>calc.subtotal&&calc.subtotal>0)?"Discounted price is above the subtotal, so no discount was applied.":"Leave empty for no discount. Discount is worked out for you: Subtotal minus the discounted price.";}
   var paid=splitTotal();
   var bal=Math.max(0,calc.total-paid);
   var paidEl=$("splitPaidTotal");if(paidEl)paidEl.textContent=fmt(paid);
@@ -1342,7 +1347,7 @@ function syncPaidDefaults(){
   /* Untouched single payment row defaults to the full total, so a normal
      one-method sale works exactly as before. Once staff type an amount,
      add a row, or change a method, the amounts stay as typed. */
-  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  var calc=calcSale(cart,$("discountedPrice").value);
   if(!splitTouched&&splitPayments.length===1){
     splitPayments[0].amount=calc.total;
     var box=$("splitPayments");
@@ -1351,18 +1356,17 @@ function syncPaidDefaults(){
   if(!$("cashReceived").dataset.touched)$("cashReceived").value=splitCashTotal()>0?splitCashTotal():"";
 }
 $("sellSearch").addEventListener("input",renderSell);
-$("discountType").addEventListener("change",function(){syncPaidDefaults();renderCart()});
-$("discountValue").addEventListener("input",function(){syncPaidDefaults();renderCart()});
+$("discountedPrice").addEventListener("input",function(){syncPaidDefaults();renderCart()});
 $("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";refreshCartTotals()});
 $("addSplitBtn").onclick=function(){
-  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  var calc=calcSale(cart,$("discountedPrice").value);
   var remaining=Math.max(0,calc.total-splitTotal());
   var used={};splitPayments.forEach(function(p){used[p.method]=1});
   var method=!used["Transfer"]?"Transfer":(!used["POS"]?"POS":(!used["Cash"]?"Cash":"Transfer"));
   splitPayments.push({method:method,amount:remaining});
   splitTouched=true;renderSplitRows();refreshCartTotals();
 };
-$("clearCartBtn").onclick=function(){cart=[];splitPayments=[{method:"Cash",amount:0}];splitTouched=false;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSplitRows();renderSell();resetCartScroll()};
+$("clearCartBtn").onclick=function(){cart=[];splitPayments=[{method:"Cash",amount:0}];splitTouched=false;delete $("cashReceived").dataset.touched;$("discountedPrice").value="";$("custName").value="";$("custPhone").value="";renderSplitRows();renderSell();resetCartScroll()};
 /* ---------- Large Format: simple manual entry, no automatic calculation ----------
    Like the first version: 1. Choose the type. 2. Type the size.
    3. Type the quantity. 4. Type the price yourself. Then Add to sale.
@@ -1503,7 +1507,7 @@ function ensureJobsFromSales(){
   return made;
 }
 $("chargeBtn").onclick=function(){
-  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  var calc=calcSale(cart,$("discountedPrice").value);
   if(!cart.length||calc.total<=0)return;
   var paid=splitTotal(),name=$("custName").value.trim(),phone=$("custPhone").value.trim();
   if(paid<0||paid>calc.total){alert("Amount paid must be between ₦0 and the total.");return}
@@ -1517,7 +1521,7 @@ $("chargeBtn").onclick=function(){
   state.receiptSeq=(state.receiptSeq||0)+1;
   var sale={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,receiptNo:"R"+DEVICE_ID+"-"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
     items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice,flatAmount:!!it.flatAmount}}),
-    subtotal:calc.subtotal,discountType:$("discountType").value,discountValue:Number($("discountValue").value||0),discount:calc.discount,total:calc.total,
+    subtotal:calc.subtotal,discountType:"discounted",discountValue:($("discountedPrice").value===""?null:Math.max(0,Math.floor(Number($("discountedPrice").value)||0))),discountedPrice:($("discountedPrice").value===""?null:Math.max(0,Math.floor(Number($("discountedPrice").value)||0))),discount:calc.discount,total:calc.total,
     paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":paySummary,payments:payments,customerName:name||"",phone:phone||"",
     cashReceived:cashReceived,change:cashPart>0?Math.max(0,cashReceived-cashPart):0,voided:false};
   state.sales.push(sale);
@@ -1529,7 +1533,7 @@ $("chargeBtn").onclick=function(){
      sale is never lost if the print dialog is cancelled or paper runs out. */
   save();lastSaleId=sale.id;
   cart=[];splitPayments=[{method:"Cash",amount:0}];splitTouched=false;delete $("cashReceived").dataset.touched;
-  $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("cashReceived").value="";
+  $("discountedPrice").value="";$("custName").value="";$("custPhone").value="";$("cashReceived").value="";
   $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full")+" · Printing receipt automatically…";
   $("successModal").classList.add("open");
   renderSplitRows();
