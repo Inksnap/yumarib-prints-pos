@@ -214,10 +214,11 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
             <div class="product-grid" id="productGrid"></div>
 <div class="card" id="lfCalcCard" style="margin-bottom:12px">
         <h3 style="margin:0 0 4px">Large Format calculator</h3>
-        <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV is charged per square inch.</p>
+        <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV Print and Cut is &#8358;400 per square foot, SAV Print Only is &#8358;180 per square foot. Both SAV types are charged per square inch.</p>
         <div class="pay-pills" id="lfTypePills">
           <button class="pill active" data-lf="Flex" type="button">Flex</button>
-          <button class="pill" data-lf="SAV" type="button">SAV</button>
+          <button class="pill" data-lf="SAV Print and Cut" type="button">SAV Print and Cut</button>
+          <button class="pill" data-lf="SAV Print Only" type="button">SAV Print Only</button>
         </div>
         <div class="form-row" style="margin-top:10px">
           <div><label id="lfWidthLabel">Width (feet)</label><input id="lfWidth" type="number" min="0" step="0.5" placeholder="5"></div>
@@ -230,9 +231,9 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       </div>
       <div class="card" id="customJobCard" style="margin-top:12px">
         <h3 style="margin:0 0 4px">Custom job</h3>
-        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Type the size and the price is calculated automatically. Flex: width x height x &#8358;160. SAV: width x height x &#8358;450 &divide; 144 per one.</p>
+        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Type the size and the price is calculated automatically. Flex: width x height x &#8358;160. SAV Print and Cut: width x height x &#8358;400 &divide; 144 per one. SAV Print Only: width x height x &#8358;180 &divide; 144 per one.</p>
         <div class="form-row">
-          <div><label>Job type</label><select id="customType"><option value="SAV" selected>SAV</option><option value="Flex">Flex</option><option value="Other">Other</option></select></div>
+          <div><label>Job type</label><select id="customType"><option value="SAV Print and Cut" selected>SAV Print and Cut</option><option value="SAV Print Only">SAV Print Only</option><option value="Flex">Flex</option><option value="Other">Other</option></select></div>
           <div id="customOtherWrap" style="display:none"><label>Job name</label><input id="customOtherName" value="Custom job" placeholder="Job name"></div>
           <div><label id="customWidthLabel">Width (inches)</label><input id="customWidth" type="number" min="0" step="0.5" placeholder="9"></div>
           <div><label id="customHeightLabel">Height (inches)</label><input id="customHeight" type="number" min="0" step="0.5" placeholder="15"></div>
@@ -915,9 +916,12 @@ $("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touc
    User's exact formulas, no rates invented:
    Flex: price per banner = width (feet) x height (feet) x 160.
      Example 5x7 ft: 5 x 7 x 160 = 5600.
-   SAV: price per sticker = width (inches) x height (inches) x 450 / 144.
-     Example 5x7 in: 5 x 7 x 450 / 144 = 109.375, rounded to 109 per sticker.
-     Example 9x15 in: 9 x 15 x 450 / 144 = 421.875, rounded to 422 per sticker.
+   SAV Print and Cut: price per sticker = width (inches) x height (inches) x 400 / 144.
+     Example 5x7 in: 5 x 7 x 400 / 144 = 97.22, rounded to 97 per sticker.
+     Example 9x15 in: 9 x 15 x 400 / 144 = 375 per sticker.
+   SAV Print Only: price per sticker = width (inches) x height (inches) x 180 / 144.
+     Example 5x7 in: 5 x 7 x 180 / 144 = 43.75, rounded to 44 per sticker.
+     Example 9x15 in: 9 x 15 x 180 / 144 = 168.75, rounded to 169 per sticker.
      Total = rounded per-one price x quantity.
    Added items have category "Large Format" (or the category picked on the
    Custom Job card), so they count under Large Format in Dashboard / Reports
@@ -932,18 +936,25 @@ function calcLargeFormat(type,w,h,qty){
       name:"Flex "+lfNum(w)+"x"+lfNum(h)+" ft",
       formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6160 = "+fmt(unit)+" per banner"};
   }
-  if(type==="SAV"){
-    var exact=w*h*450/144,unitS=Math.round(exact);
-    return {type:"SAV",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
-      name:"SAV "+lfNum(w)+"x"+lfNum(h)+" in",
-      formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6450 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
+  if(type==="SAV"||type==="SAV Print and Cut"){
+    var exact=w*h*400/144,unitS=Math.round(exact);
+    return {type:"SAV Print and Cut",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
+      name:"SAV Print and Cut "+lfNum(w)+"x"+lfNum(h)+" in",
+      formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6400 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
+  }
+  if(type==="SAV Print Only"){
+    var exact=w*h*180/144,unitS=Math.round(exact);
+    return {type:"SAV Print Only",w:w,h:h,qty:qty,unit:unitS,total:unitS*qty,exact:exact,
+      name:"SAV Print Only "+lfNum(w)+"x"+lfNum(h)+" in",
+      formula:lfNum(w)+" x "+lfNum(h)+" x \u20a6180 \u00f7 144 = \u20a6"+exact.toFixed(2)+" per sticker, rounded to "+fmt(unitS)};
   }
   return null;
 }
 /* ---------- Custom Job (always at the bottom of Sell) ----------
    Price is calculated automatically as soon as width and height are typed.
-   Flex uses feet and x160, SAV uses inches and x450/144. Staff never have
-   to type the price for Flex or SAV. "Other" keeps a manual price. */
+   Flex uses feet and x160, SAV Print and Cut uses inches and x400/144,
+   SAV Print Only uses inches and x180/144. Staff never have
+   to type the price for Flex or either SAV type. "Other" keeps a manual price. */
 function customCalc(){
   var type=$("customType").value;
   if(type==="Other")return null;
@@ -971,7 +982,7 @@ function renderCustomCalc(){
 ["customType","customWidth","customHeight","customQty"].forEach(function(id){$(id).addEventListener("input",renderCustomCalc);$(id).addEventListener("change",renderCustomCalc)});
 $("addCustomBtn").onclick=function(){
   var type=$("customType").value,cat=$("customCat").value,w=$("customWidth").value,h=$("customHeight").value;
-  if(!w||!h){$("customErr").textContent="Enter width and height, e.g. SAV 9 and 15.";return}
+  if(!w||!h){$("customErr").textContent="Enter width and height, e.g. SAV Print and Cut 9 and 15.";return}
   if(type==="Other"){
     var price=Number($("customPrice").value||0);
     if(price<=0){$("customErr").textContent="Enter a price for the custom job.";return}
@@ -982,7 +993,7 @@ $("addCustomBtn").onclick=function(){
     renderSell();return;
   }
   var c=customCalc();
-  if(!c){$("customErr").textContent="Enter width and height, e.g. SAV 9 and 15.";return}
+  if(!c){$("customErr").textContent="Enter width and height, e.g. SAV Print and Cut 9 and 15.";return}
   $("customErr").textContent="";
   cart.push({key:uid(),productId:null,name:c.name,category:cat,price:c.unit,qty:c.qty});
   renderSell();
@@ -1007,7 +1018,7 @@ document.querySelectorAll("#lfTypePills .pill").forEach(function(b){b.onclick=fu
 ["lfWidth","lfHeight","lfQty"].forEach(function(id){$(id).addEventListener("input",renderLfCalc)});
 $("addLfBtn").onclick=function(){
   var c=lfCalc();
-  if(!c){$("lfErr").textContent="Enter width, height and quantity first. Example: Flex 5 by 7 feet, or SAV 5 by 7 inches.";return}
+  if(!c){$("lfErr").textContent="Enter width, height and quantity first. Example: Flex 5 by 7 feet, or SAV Print and Cut 5 by 7 inches.";return}
   $("lfErr").textContent="";
   cart.push({key:uid(),productId:null,name:c.name,category:"Large Format",price:c.unit,qty:c.qty});
   renderSell();
