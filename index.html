@@ -350,6 +350,19 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <p class="muted">Expected cash is cash received today, minus cash expenses today. Count it, enter the counted amount, and check the difference is ₦0.</p>
     </div>
   </div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Expenses</h3>
+    <div class="form-row">
+      <div><label>What was it for?</label><input id="dashExpTitle" autocomplete="off" placeholder="e.g. Fuel, paper, transport"></div>
+      <div><label>Amount (&#8358;)</label><input id="dashExpAmount" type="number" min="0" step="1"></div>
+      <div><label>Date</label><input id="dashExpDate" type="date"></div>
+    </div>
+    <button class="btn" id="dashAddExpBtn" style="margin-top:10px">Add expense</button>
+    <p id="dashExpErr" class="err"></p>
+    <div id="dashExpList" style="margin-top:12px"></div>
+    <div class="tot-row"><span>Total expenses</span><strong id="dashExpTotal">&#8358;0</strong></div>
+    <div class="tot-row grand"><span>Net (collected minus expenses)</span><strong id="dashNet">&#8358;0</strong></div>
+    <p class="muted">Expenses do not change Total collected above. Net is Total collected minus expenses for this date. The same expenses also show in Admin &gt; Expenses.</p>
+  </div>
   <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Today's sales</h3><div id="todaySales"></div></div>
 </section>
 
@@ -505,7 +518,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v42</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v43</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -1724,6 +1737,8 @@ function renderDashboard(){
   var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+saleCollected(s)});
   $("staffTotals").innerHTML=Object.keys(byStaff).length?Object.keys(byStaff).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byStaff[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
   renderClosing(d);
+  if($("dashExpDate"))$("dashExpDate").value=d;
+  renderDashExpenses(d,collected);
   var ts=$("todaySales");
   ts.innerHTML=list.length?'<table><tr><th>Receipt</th><th>Time</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th></th></tr>'+list.slice().reverse().map(function(s){return '<tr><td>'+esc(s.receiptNo)+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> <button class="btn-ghost btn btn-sm" data-w="'+s.id+'">WhatsApp</button></td></tr>'}).join("")+'</table>':'<p class="muted">No sales on this date yet.</p>';
   ts.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
@@ -1761,11 +1776,15 @@ function totalsSheetHtml(dateLabel,list,catCol,from,to){
   var methods=["Cash","POS","Transfer"].concat(Object.keys(byPay).filter(function(m){return ["Cash","POS","Transfer"].indexOf(m)<0}).sort());
   var payRows=methods.map(function(m){return '<tr><td>'+esc(m)+'</td><td>'+fmt(byPay[m]||0)+'</td></tr>'}).join("");
   var payTotal=methods.reduce(function(a,m){return a+(byPay[m]||0)},0);
+  var expTotal=(state.expenses||[]).filter(function(e){var dd=dateOf(e.date);return dd>=from&&dd<=to}).reduce(function(a,e){return a+Number(e.amount||0)},0);
+  var netTotal=catCol.catSum-expTotal;
   return '<div class="job-history"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Totals by category</h3>'+
   '<p style="text-align:center">'+esc(dateLabel)+' · Printed '+esc(fmtDT(new Date().toISOString()))+' by '+esc(currentUser?currentUser.name:"")+'</p>'+
   '<h4>Totals by category (money collected)</h4><table><tr><th>Category</th><th>Money collected</th></tr>'+catRows+
   '<tr><td><strong>Categories total (money collected)</strong></td><td><strong>'+fmt(catCol.catSum)+'</strong></td></tr>'+
-  '<tr><td>Balance still owed</td><td>'+fmt(catCol.balance)+'</td></tr></table>'+
+  '<tr><td>Balance still owed</td><td>'+fmt(catCol.balance)+'</td></tr>'+
+  '<tr><td>Total expenses</td><td>'+fmt(expTotal)+'</td></tr>'+
+  '<tr><td><strong>Net (collected minus expenses)</strong></td><td><strong>'+fmt(netTotal)+'</strong></td></tr></table>'+
   '<h4 style="margin-top:10px">Money by payment</h4><table><tr><th>Payment</th><th>Money collected</th></tr>'+payRows+
   '<tr><td><strong>Money by payment total</strong></td><td><strong>'+fmt(payTotal)+'</strong></td></tr></table>'+
   '<p style="text-align:center;margin-top:10px">Category amounts are money collected only. Money by payment also includes payments recorded on jobs separately.</p></div>';
@@ -1783,6 +1802,26 @@ function printReportTotals(){
   window.print();
 }
 $("printTotalsBtn").onclick=function(){printDashboardTotals()};
+/* ---------- dashboard expenses ----------
+   Same expense list as Admin > Expenses (state.expenses), so an expense
+   added here shows there too and vice versa. Expenses are saved locally
+   and synced to the cloud like any other record. Total collected never
+   changes: Net = Total collected - Total expenses for the date. */
+function renderDashExpenses(d,collected){
+  var box=$("dashExpList");if(!box)return;
+  var isAdmin=currentUser&&currentUser.role==="admin";
+  var list=state.expenses.filter(function(e){return dateOf(e.date)===d}).slice().reverse();
+  var total=list.reduce(function(a,e){return a+Number(e.amount||0)},0);
+  box.innerHTML=list.length?'<table><tr><th>Date</th><th>What</th><th>Amount</th><th>Added by</th><th></th></tr>'+list.map(function(e){return '<tr><td>'+esc(dateOf(e.date))+'</td><td>'+esc(e.title)+'</td><td>'+fmt(e.amount)+'</td><td>'+esc(e.by||"\u2014")+'</td><td>'+(isAdmin?'<button class="btn-danger btn btn-sm" data-de="'+e.id+'">Delete</button>':"")+'</td></tr>'}).join("")+'</table>':'<p class="muted">No expenses on this date yet.</p>';
+  box.querySelectorAll("[data-de]").forEach(function(b){b.onclick=function(){state.expenses=state.expenses.filter(function(e){return e.id!==b.dataset.de});save();renderDashboard();renderExpenses()}});
+  $("dashExpTotal").textContent=fmt(total);
+  $("dashNet").textContent=fmt(collected-total);
+}
+$("dashAddExpBtn").onclick=function(){
+  var t=$("dashExpTitle").value.trim(),a=Number($("dashExpAmount").value||0),d=$("dashExpDate").value||$("dashDate").value||todayStr();
+  if(!t||a<=0){$("dashExpErr").textContent="Enter what it was for and an amount above \u20a60.";return}
+  $("dashExpErr").textContent="";state.expenses.push(touchRecord({id:uid(),title:t,amount:a,date:d+"T12:00:00",by:currentUser?currentUser.name:""}));save();$("dashExpTitle").value="";$("dashExpAmount").value="";renderDashboard();renderExpenses();
+};
 $("countedCash").addEventListener("input",function(){renderClosing($("dashDate").value||todayStr())});
 $("saveClosingBtn").onclick=function(){
   var d=$("dashDate").value||todayStr();
@@ -1988,7 +2027,7 @@ function renderAdminSales(){
 $("adminSalesDate").addEventListener("change",renderAdminSales);
 function renderExpenses(){
   var list=state.expenses.slice().reverse();
-  $("expList").innerHTML=list.length?'<table><tr><th>Date</th><th>What</th><th>Amount</th><th></th></tr>'+list.map(function(e){return '<tr><td>'+esc(dateOf(e.date))+'</td><td>'+esc(e.title)+'</td><td>'+fmt(e.amount)+'</td><td><button class="btn-danger btn btn-sm" data-e="'+e.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No expenses yet.</p>';
+  $("expList").innerHTML=list.length?'<table><tr><th>Date</th><th>What</th><th>Amount</th><th>Added by</th><th></th></tr>'+list.map(function(e){return '<tr><td>'+esc(dateOf(e.date))+'</td><td>'+esc(e.title)+'</td><td>'+fmt(e.amount)+'</td><td>'+esc(e.by||"\u2014")+'</td><td><button class="btn-danger btn btn-sm" data-e="'+e.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No expenses yet.</p>';
   $("expList").querySelectorAll("[data-e]").forEach(function(b){b.onclick=function(){state.expenses=state.expenses.filter(function(e){return e.id!==b.dataset.e});save();renderExpenses();renderAdmin()}});
   var net=state.sales.filter(function(s){return !s.voided}).reduce(function(a,s){return a+Number(s.total||0)},0)-state.expenses.reduce(function(a,e){return a+Number(e.amount||0)},0);
   $("netTotal").textContent=fmt(net);
@@ -1996,7 +2035,7 @@ function renderExpenses(){
 $("addExpBtn").onclick=function(){
   var t=$("expTitle").value.trim(),a=Number($("expAmount").value||0),d=$("expDate").value||todayStr();
   if(!t||a<=0){$("expErr").textContent="Enter what it was for and an amount above ₦0.";return}
-  $("expErr").textContent="";state.expenses.push(touchRecord({id:uid(),title:t,amount:a,date:d+"T12:00:00"}));save();$("expTitle").value="";$("expAmount").value="";renderExpenses();renderAdmin();
+  $("expErr").textContent="";state.expenses.push(touchRecord({id:uid(),title:t,amount:a,date:d+"T12:00:00",by:currentUser?currentUser.name:""}));save();$("expTitle").value="";$("expAmount").value="";renderExpenses();renderAdmin();
 };
 function renderReport(){
   var from=$("repFrom").value||todayStr(),to=$("repTo").value||todayStr();
