@@ -24,7 +24,7 @@ DI — Direct Images: A4 Paper 80, A3 Paper 150, A4 Solid 300, A3 Solid 600, Let
 ## Printing receipts — Xprinter XP-80T
 
 - Receipt paper width defaults to 80mm (72mm content) for the Xprinter XP-80T. Change it to 58mm in Admin → Shop if you load 58mm paper.
-- In Windows, set the Xprinter XP-80T as the **Default Printer**, then use **Print receipt**. The print view is 80mm wide with no app chrome.
+- In Windows, set the Xprinter XP-80T as the **Default Printer**. After Charge the receipt prints automatically, then the screen goes back to Sell with a fresh empty Current sale, ready for the next customer. The sale is saved (local + cloud) before printing, so cancelling the print dialog does not lose the sale. If the print fails or paper runs out, reprint from the "Reprint last receipt" button in Sell, or from Reprint in Dashboard / Admin Sales. The print view is 80mm wide with no app chrome.
 - WhatsApp receipt opens wa.me with the receipt text, using the customer phone entered on the sale when present.
 
 ## What is inside

@@ -298,6 +298,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <p id="chargeHint" class="muted"></p>
       <button class="btn btn-orange" id="chargeBtn" style="width:100%;height:52px;font-size:17px">Charge</button>
       <button class="btn-ghost btn" id="clearCartBtn" style="width:100%;margin-top:8px">Clear sale</button>
+      <button class="btn-ghost btn" id="reprintLastBtn" style="width:100%;margin-top:8px;display:none">Reprint last receipt</button>
     </aside>
   </div>
 </section>
@@ -511,9 +512,9 @@ service cloud.firestore {
 <div class="modal-back" id="successModal">
   <div class="modal">
     <div class="success-box"><h3>✓ Sale recorded</h3><p id="successText" class="muted"></p></div>
-    <button class="btn btn-orange" id="printReceiptBtn" style="width:100%;height:52px;font-size:16px;margin-top:14px">Print receipt</button>
+    <button class="btn btn-orange" id="printReceiptBtn" style="width:100%;height:52px;font-size:16px;margin-top:14px">Reprint receipt</button>
     <button class="btn" id="waReceiptBtn" style="width:100%;height:48px;margin-top:8px">WhatsApp receipt</button>
-    <button class="btn-ghost btn" id="doneBtn" style="width:100%;margin-top:8px">Done</button>
+    <button class="btn-ghost btn" id="doneBtn" style="width:100%;margin-top:8px">Done — back to Sell</button>
   </div>
 </div>
 <div class="modal-back" id="receiptModal">
@@ -541,7 +542,7 @@ service cloud.firestore {
 "use strict";
 /* ---------- storage ---------- */
 var KEY="yumarib-pos-v1";
-var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null;
+var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null, autoReturnAfterPrint=null;
 var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#7b5cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
 /* Sell groups: DI is split in the Sell screen, so staff find Paper and Card fast.
    Paper is A4 separate from A3. Card is separate by grams, A4 separate from A3.
@@ -938,6 +939,11 @@ function refreshCartTotals(){
 }
 function renderCart(){
   syncPaidDefaults();
+  /* Reprint last receipt: shown in Sell after a sale, so a failed print /
+     paper-out can be reprinted without going to Dashboard. It never
+     triggers the auto-return to Sell, that is only for the auto-print. */
+  var rb=$("reprintLastBtn");
+  if(rb){var ls=lastSaleId?getSale(lastSaleId):null;rb.style.display=ls?"":"none";if(ls)rb.textContent="Reprint last receipt ("+ls.receiptNo+")"}
   var box=$("cartItems");box.innerHTML="";
   $("cartEmpty").style.display=cart.length?"none":"block";
   cart.forEach(function(it){
@@ -1112,14 +1118,36 @@ $("chargeBtn").onclick=function(){
   state.sales.push(sale);
   cart.forEach(function(it){if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p&&p.stock!==null&&p.stock!==undefined)p.stock=Math.max(0,p.stock-it.qty)}});
   if(name)upsertCustomer(name,phone);
+  /* Sale is saved first (localStorage + cloud queue inside save()), so the
+     sale is never lost if the print dialog is cancelled or paper runs out. */
   save();lastSaleId=sale.id;
   cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;
   $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("amountPaid").value="";$("cashReceived").value="";
-  $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full");
+  $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full")+" · Printing receipt automatically…";
   $("successModal").classList.add("open");
   renderAll();
+  /* After Charge: print the receipt automatically, then go back to Sell
+     automatically (see the afterprint handler below). The print dialog is
+     opened from this Charge click, a short delay only lets the success
+     message show first. */
+  autoReturnAfterPrint=sale.id;
+  setTimeout(function(){var s=getSale(sale.id);if(s)printReceipt(s)},350);
 };
-$("doneBtn").onclick=function(){$("successModal").classList.remove("open")};
+function backToSell(){
+  autoReturnAfterPrint=null;
+  $("successModal").classList.remove("open");$("receiptModal").classList.remove("open");
+  cart=[];
+  switchTab("sell");
+}
+window.addEventListener("afterprint",function(){
+  /* Fires in Chrome when the print dialog closes, whether the receipt
+     printed or the user cancelled it. Only auto-return for the automatic
+     print after Charge, never for a manual reprint from Dashboard/Admin. */
+  if(!autoReturnAfterPrint)return;
+  backToSell();
+});
+$("doneBtn").onclick=function(){backToSell()};
+$("reprintLastBtn").onclick=function(){var s=getSale(lastSaleId);if(s)printReceipt(s)};
 $("printReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)printReceipt(s)};
 $("waReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)sendWhatsAppReceipt(s)};
 function getSale(id){return state.sales.filter(function(s){return s.id===id})[0]}
