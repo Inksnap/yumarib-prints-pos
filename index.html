@@ -46,6 +46,10 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .pill:hover{transform:translateY(-1px)}
 .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent);box-shadow:0 6px 16px rgba(232,106,23,.35)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+/* Sell category pills: MUCH bigger, for easy reading/tapping on the POS machine (user photo 2026-11-16). Scoped to #catPills only, so pay/admin pills stay small. */
+#catPills.pill-row{gap:12px;margin:16px 0}
+#catPills .pill{font-size:22px;font-weight:800;line-height:1.2;padding:16px 24px;min-height:60px;border-width:2px;border-radius:16px}
+#catPills .pill.active{box-shadow:0 8px 20px rgba(232,106,23,.4)}
 .sell-grid{display:grid;grid-template-columns:1fr 370px;gap:16px;align-items:start}
 @media(max-width:900px){.sell-grid{grid-template-columns:1fr}}
 .product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
