@@ -804,9 +804,9 @@ function customerBalance(name){
 }
 /* ---------- sell ---------- */
 function renderCatPills(){
-  var counts={All:state.products.length};SELL_GROUPS.forEach(function(c){counts[c.name]=state.products.filter(function(p){return sellGroup(p)===c.name}).length});
+  /* Category pills show the name only, no (n) count, per user request 2026-11-16. */
   var box=$("catPills");box.innerHTML="";
-  [["All","All ("+counts.All+")"]].concat(SELL_GROUPS.map(function(c){return [c.name,c.label+" ("+counts[c.name]+")"]})).forEach(function(pair){
+  [["All","All"]].concat(SELL_GROUPS.map(function(c){return [c.name,c.label]})).forEach(function(pair){
     var b=document.createElement("button");b.className="pill"+(currentCat===pair[0]?" active":"");b.textContent=pair[1];
     b.onclick=function(){currentCat=pair[0];renderCatPills();renderSell()};
     box.appendChild(b);
