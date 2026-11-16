@@ -86,16 +86,14 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .cart-line{display:flex;justify-content:space-between;gap:6px;padding:6px 0;border-bottom:1px solid var(--border2);font-weight:700}
 .cart-line strong{font-size:15px;font-weight:800}
 .cart-line .line-total{font-size:16px;font-weight:900}
-.qty-btn{width:36px;height:42px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-weight:900;font-size:20px;padding:0;flex:none}
 .qty-input{width:64px;height:42px;text-align:center;padding:6px 4px;font-weight:900;font-size:18px;border-width:2px}
 .qty-input:focus{outline:2px solid var(--accent)}
 .tot-row{display:flex;justify-content:space-between;padding:4px 0;font-size:15px;font-weight:800}
 .tot-row.grand{font-weight:900;font-size:19px;border-top:2px solid var(--border);margin-top:4px;padding-top:8px}
 /* Big quantity and discount inputs in the Current Sale panel (user 2026-11-16). */
 .cart-panel #discountValue{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px;flex:1;min-width:0}
-/* Price collected: big input, same size as quantity / discount, so staff can type it fast. */
+/* Price collected (Large Format / Custom Job): big input, so staff can type it fast. */
 .price-collected{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px}
-.price-input{width:88px;height:36px;text-align:right;padding:4px 8px;font-weight:900;font-size:15px;border-width:2px}
 .cart-panel #discountType{height:42px;font-size:15px;font-weight:800;width:110px;flex:none}
 .cart-panel #cashReceived{height:42px;font-size:17px;font-weight:800;border-width:2px}
 .pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent)}
@@ -309,7 +307,6 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <input id="custName" placeholder="Customer name" autocomplete="off">
       <input id="custPhone" placeholder="Customer phone (for WhatsApp receipt)" autocomplete="off" style="margin-top:8px">
       <label>Payments (split payment)</label>
-      <p class="muted" style="margin:0 0 4px">Split the total between Cash, POS and Transfer. Example: total ₦70,000, pay ₦10,000 Cash + ₦60,000 Transfer, or ₦10,000 Cash + ₦60,000 POS. Tap + Add another payment to add a row.</p>
       <div id="splitPayments"></div>
       <button class="btn-ghost btn" id="addSplitBtn" type="button" style="width:100%;margin-top:8px">+ Add another payment</button>
       <div id="cashBox" style="display:none">
@@ -1084,14 +1081,11 @@ function renderCart(){
   $("cartEmpty").style.display=cart.length?"none":"block";
   cart.forEach(function(it){
     var row=document.createElement("div");row.className="cart-line";
-    var _priceLabel=it.flatAmount?'Amount: ':'Price collected: ';
-    var _eachLabel=it.flatAmount?'':' each';
-    row.innerHTML='<div><strong>'+esc(it.name)+'</strong><br><span class="muted">'+_priceLabel+'</span><input type="number" class="price-input" min="0" step="1" value="'+it.price+'" aria-label="Price collected for '+esc(it.name)+'"><span class="muted">'+_eachLabel+'</span>'+(it.manualPrice?' <span class="muted" style="color:var(--accent);font-weight:800">\u00b7 collected</span>':'')+'</div><div style="display:flex;gap:6px;align-items:center"><button class="qty-btn" data-a="minus">−</button><input type="number" class="qty-input" min="0" step="1" value="'+it.qty+'" aria-label="Quantity for '+esc(it.name)+'"><button class="qty-btn" data-a="plus">+</button><strong class="line-total" style="min-width:70px;text-align:right">'+fmt(lineTotal(it))+'</strong></div>';
-    row.querySelector('[data-a="minus"]').onclick=function(){it.qty--;if(it.qty<=0)cart=cart.filter(function(x){return x!==it});renderSell()};
-    row.querySelector('[data-a="plus"]').onclick=function(){
-      var p=state.products.filter(function(x){return x.id===it.productId})[0];
-      if(p&&p.stock!==null&&it.qty>=p.stock){alert("Only "+p.stock+" left in stock.");return}
-      it.qty++;renderSell()};
+    /* Current sale line (2026-11-16): name, quantity box only, line total.
+       No Price collected box in front of the quantity, and no - / + buttons.
+       The line price stays as it.price (saved product price, or the amount
+       typed in Large Format / Custom Job), quantity is typed in the box. */
+    row.innerHTML='<div><strong>'+esc(it.name)+'</strong></div><div style="display:flex;gap:6px;align-items:center"><input type="number" class="qty-input" min="0" step="1" value="'+it.qty+'" aria-label="Quantity for '+esc(it.name)+'"><strong class="line-total" style="min-width:70px;text-align:right">'+fmt(lineTotal(it))+'</strong></div>';
     (function(){
       var qin=row.querySelector('.qty-input');
       if(!qin||!qin.addEventListener)return;
@@ -1107,28 +1101,6 @@ function renderCart(){
         var v=Math.floor(Number(qin.value)||0);
         if(v<=0){cart=cart.filter(function(x){return x!==it})}
         else{if(prod&&prod.stock!==null&&prod.stock!==undefined&&v>prod.stock){alert("Only "+prod.stock+" left in stock.");v=prod.stock}it.qty=v}
-        renderSell();
-      });
-    })();
-    (function(){
-      /* Price collected on the Current sale line: staff can type the price
-         they actually collected for this one sale. It only changes this
-         sale line, never the product's saved price in Products. */
-      var pin=row.querySelector('.price-input');
-      if(!pin||!pin.addEventListener)return;
-      var origPrice=it.price;
-      pin.addEventListener('input',function(){
-        var v=Math.floor(Number(pin.value)||0);
-        if(v<0){v=0;pin.value="0"}
-        it.price=v;
-        it.manualPrice=(v!==origPrice);
-        var lt=row.querySelector('.line-total');if(lt)lt.textContent=fmt(lineTotal(it));
-        refreshCartTotals();
-      });
-      pin.addEventListener('change',function(){
-        var v=Math.floor(Number(pin.value)||0);
-        if(v<=0){it.price=origPrice;it.manualPrice=false}
-        else{it.price=v;it.manualPrice=(v!==origPrice)}
         renderSell();
       });
     })();
