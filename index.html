@@ -510,6 +510,10 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
+      <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
+      <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
+      <input id="machineNameInput" placeholder="e.g. Front Desk" style="width:100%">
+      <p class="muted" id="syncCounts">Not synced yet. When this machine is online, its sales are merged with the other machines, so Dashboard totals add up across all machines.</p>
       <label>Firebase config (built in, override here only if the Firebase project changes)</label>
       <textarea id="firebaseConfigInput" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}' style="width:100%"></textarea>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
@@ -526,7 +530,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
         <li>Build &gt; Firestore Database &gt; Create database, start in production mode, pick a location (e.g. europe-west). </li>
         <li>Build &gt; Authentication &gt; Get started &gt; Sign-in method &gt; Anonymous &gt; Enable.</li>
         <li>Project settings (gear) &gt; Your apps &gt; Web app (&lt;/&gt;), nickname yumarib-pos, Register app, copy the firebaseConfig object.</li>
-        <li>In Firestore &gt; Rules, paste the rules below and Publish. They allow only signed-in (anonymous) users to read/write the one POS document, no public access.</li>
+        <li>In Firestore &gt; Rules, paste the rules below and Publish. They allow only signed-in (anonymous) users to read/write the POS documents, no public access. The same rule covers the shared doc and one doc per machine (pos/device-XXXX), so no change is needed when a second machine is added.</li>
         <li>The config is already built into the website, so no paste is needed here. Just tap Sync now. Then clear Chrome data as a test, open the POS, sign in, and your sales should come back.</li>
       </ol>
       <pre style="white-space:pre-wrap;font-size:12px">rules_version = '2';
@@ -587,6 +591,22 @@ service cloud.firestore {
 "use strict";
 /* ---------- storage ---------- */
 var KEY="yumarib-pos-v1";
+/* ---------- multi-machine sync: each machine has its own ID ----------
+   Every POS machine / staff system gets a short code, e.g. POS-A1B2,
+   stored in this browser only (yumarib-device-id). It never changes for
+   this machine, so receipts and jobs from different machines never clash,
+   and the cloud can tell which machine a sale came from. */
+var DEVICE_ID_KEY="yumarib-device-id";
+var DEVICE_NAME_KEY="yumarib-device-name";
+function getDeviceId(){try{var d=localStorage.getItem(DEVICE_ID_KEY);if(d&&/^[A-Z0-9]{4}$/.test(d))return d;var s="";var ch="ABCDEFGHJKMNPQRSTUVWXYZ23456789";for(var i=0;i<4;i++)s+=ch[Math.floor(Math.random()*ch.length)];localStorage.setItem(DEVICE_ID_KEY,s);return s}catch(e){return "XXXX"}}
+var DEVICE_ID=getDeviceId();
+function getDeviceName(){try{return localStorage.getItem(DEVICE_NAME_KEY)||""}catch(e){return ""}}
+function setDeviceName(n){try{localStorage.setItem(DEVICE_NAME_KEY,n||"")}catch(e){}}
+/* Stamp a record with the machine that last changed it, so the merge can
+   tell a new version from an old one. deviceId is who created it. */
+function touchRecord(r){if(!r)return r;r._syncAt=Date.now();r._modifiedBy=DEVICE_ID;if(!r.deviceId)r.deviceId=DEVICE_ID;return r}
+function touchShared(){if(state)state.sharedUpdatedAt=Date.now()}
+function ownRecords(list){return (list||[]).filter(function(r){return r&&(!r.deviceId||r.deviceId===DEVICE_ID||r._modifiedBy===DEVICE_ID)})}
 var state=null, currentUser=null, cart=[], currentCat="All", lastSaleId=null, selectedLoginUser=null, autoReturnAfterPrint=null;
 var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#7b5cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
 /* Sell groups: DI is split in the Sell screen, so staff find Paper and Card fast.
@@ -692,7 +712,7 @@ function seedProducts(){
   ];
   return P.map(function(r,i){return {id:"seed"+(i+1),name:r[0],category:r[1],price:r[2],unit:r[3],stock:null,lowAt:5}});
 }
-function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0,jobSeq:0}}
+function defaultState(){return {version:1,seeded:true,shop:{name:"YUMARIB PRINTS",logo:LOGO_BLACK_CLIPART_SRC,logoCustom:false,paperWidth:80},users:[],products:seedProducts(),sales:[],jobs:[],customers:[],expenses:[],payments:[],closings:[],receiptSeq:0,jobSeq:0,sharedUpdatedAt:0}}
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw){state=defaultState();return}
     state=JSON.parse(raw);
@@ -700,7 +720,7 @@ function load(){
     state.shop=state.shop||{name:"YUMARIB PRINTS",logo:"",paperWidth:80};
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
-    state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;
+    state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;state.sharedUpdatedAt=state.sharedUpdatedAt||0;
     /* Old sales have no payments array: build it from payment / paid, so
        split-payment receipt, Dashboard and reports show them correctly. */
     state.sales.forEach(function(s){if(!Array.isArray(s.payments)){s.payments=(Number(s.paid)>0&&s.payment&&s.payment!=="Credit")?[{method:s.payment,amount:Number(s.paid)}]:[]}});
@@ -709,7 +729,7 @@ function load(){
        older jobs can be traced too. New jobs get their history live. */
     state.jobs.slice().sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){
       if(!j.jobNo){state.jobSeq=(state.jobSeq||0)+1;j.jobNo="JOB-"+String(state.jobSeq).padStart(4,"0")}
-      else{var n=Number(String(j.jobNo).replace(/\D/g,""))||0;if(n>state.jobSeq)state.jobSeq=n}
+      else{var jm=String(j.jobNo).match(/(\d+)$/);var n=jm?Number(jm[1]):0;if(n>state.jobSeq&&n<1000000)state.jobSeq=n}
       if(!j.createdBy)j.createdBy="";
       ensureJobHistory(j);
     });
@@ -722,6 +742,76 @@ function load(){
 }
 function save(){try{state.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(state))}catch(e){alert("Could not save. Browser storage may be full (logo image too large?).")}queueCloudSync()}
 
+
+/* ---------- multi-machine merge (pure: no DOM, no cloud) ----------
+   Two machines can work offline, then merge when they are online.
+   Records are merged BY ID, never by replacing the whole list, so a
+   sale made on machine A and a sale made on machine B both survive.
+   - Sales: voided wins (one-way); payments are merged per method by
+     taking the larger amount for each method, so a Cash part added on
+     one machine and a Transfer part added on another both count, and
+     paid is the sum of the merged parts. Balance = total - paid.
+   - Jobs: paid only goes up, balance only goes down, status only moves
+     forward (Pending -> In Production -> Ready -> Collected); histories
+     are unioned, so a status change on one machine and a payment on
+     another both survive.
+   - Expenses / payments / customers: union by id. Closings: by date,
+     the later saved one wins. */
+function mergePaymentParts(a,b){var m={};(a||[]).concat(b||[]).forEach(function(p){if(!p)return;var k=p.method||"Cash";m[k]=Math.max(m[k]||0,Number(p.amount||0))});return Object.keys(m).filter(function(k){return m[k]>0}).map(function(k){return {method:k,amount:m[k]}})}
+function mergeSale(a,b){
+  var out={};Object.keys(a).forEach(function(k){out[k]=a[k]});Object.keys(b).forEach(function(k){if(out[k]==null||out[k]==="")out[k]=b[k]});
+  out.voided=!!(a.voided||b.voided);
+  var parts=mergePaymentParts(paymentParts(a),paymentParts(b));
+  out.payments=parts;
+  out.paid=parts.length?parts.reduce(function(x,p){return x+Number(p.amount||0)},0):Math.max(Number(a.paid||0),Number(b.paid||0));
+  out.total=Math.max(Number(a.total||0),Number(b.total||0));
+  out.balance=Math.max(0,out.total-out.paid);
+  out.payment=out.paid<=0?"Credit":parts.map(function(p){return p.method}).filter(function(v,i,arr){return arr.indexOf(v)===i}).join(" + ");
+  out._syncAt=Math.max(Number(a._syncAt||0),Number(b._syncAt||0));
+  return out;
+}
+function mergeJob(a,b){
+  var rank={Pending:0,"In Production":1,Ready:2,Collected:3};
+  var out={};Object.keys(a).forEach(function(k){out[k]=a[k]});Object.keys(b).forEach(function(k){if(out[k]==null||out[k]==="")out[k]=b[k]});
+  out.paid=Math.max(Number(a.paid||0),Number(b.paid||0));
+  out.total=Math.max(Number(a.total||0),Number(b.total||0));
+  out.deposit=Math.max(Number(a.deposit||0),Number(b.deposit||0));
+  out.balance=Math.max(0,out.total-out.paid);
+  out.status=(rank[b.status||"Pending"]||0)>(rank[a.status||"Pending"]||0)?b.status:a.status;
+  var seen={},hist=[];(a.history||[]).concat(b.history||[]).forEach(function(h){var k=(h.at||"")+"|"+(h.action||"")+"|"+(h.detail||"");if(!seen[k]){seen[k]=1;hist.push(h)}});
+  out.history=hist.sort(function(x,y){return new Date(x.at||0)-new Date(y.at||0)});
+  out._syncAt=Math.max(Number(a._syncAt||0),Number(b._syncAt||0));
+  return out;
+}
+function mergeList(local,remote,keyFn,mergeOne){
+  var map={},order=[];
+  (local||[]).forEach(function(r){if(!r)return;var k=keyFn(r);if(k==null)return;if(!map[k]){map[k]=r;order.push(k)}});
+  (remote||[]).forEach(function(r){if(!r)return;var k=keyFn(r);if(k==null)return;
+    if(map[k]){map[k]=mergeOne?mergeOne(map[k],r):map[k]}
+    else{map[k]=r;order.push(k)}});
+  return order.map(function(k){return map[k]});
+}
+function mergeCloudRecords(localState,doc){
+  if(!doc)return 0;
+  var before=(localState.sales||[]).length+(localState.jobs||[]).length;
+  localState.sales=mergeList(localState.sales,doc.sales,function(r){return r.id},mergeSale);
+  localState.jobs=mergeList(localState.jobs,doc.jobs,function(r){return r.id},mergeJob);
+  localState.payments=mergeList(localState.payments,doc.payments,function(r){return r.id},null);
+  localState.expenses=mergeList(localState.expenses,doc.expenses,function(r){return r.id},null);
+  localState.customers=mergeList(localState.customers,doc.customers,function(r){return r.id},function(a,b){var o={};Object.keys(a).forEach(function(k){o[k]=a[k]});if(b.phone)o.phone=b.phone;if(b._syncAt&&Number(b._syncAt)>Number(a._syncAt||0)){o.phone=b.phone||a.phone}o._syncAt=Math.max(Number(a._syncAt||0),Number(b._syncAt||0));return o});
+  localState.closings=mergeList(localState.closings,doc.closings,function(r){return r.date},function(a,b){return (new Date(b.savedAt||0)>new Date(a.savedAt||0))?b:a});
+  return ((localState.sales||[]).length+(localState.jobs||[]).length)-before;
+}
+function applySharedDoc(localState,shared){
+  if(!shared||!Array.isArray(shared.products))return false;
+  var cloudAt=Number(shared.sharedUpdatedAt||shared.updatedAt||0);
+  if(cloudAt>(localState.sharedUpdatedAt||0)){
+    localState.products=shared.products;localState.users=shared.users||localState.users;
+    localState.shop=shared.shop||localState.shop;localState.sharedUpdatedAt=cloudAt;
+    return true;
+  }
+  return false;
+}
 /* ---------- cloud backup: Firebase Firestore (free, no server) ----------
    Why Firebase, not Supabase: the user already has a Google account
    (info.inksnap@gmail.com), Firestore works from a static GitHub Pages
@@ -745,14 +835,45 @@ function save(){try{state.updatedAt=Date.now();localStorage.setItem(KEY,JSON.str
    the JSON backup is the fallback. Sync only runs after the local POS
    login, and Firestore rules require an (anonymous) Firebase sign-in. */
 var FIREBASE_CONFIG_KEY="yumarib-firebase-config";
-var CLOUD_DOC="yumarib-main";
+/* Multi-machine cloud model (replaces the old one-doc whole-state sync,
+   which overwrote the other machine: last writer won, the other machine's
+   offline sales were lost).
+   - pos/yumarib-main  = SHARED doc: products, users, shop settings only.
+     Last edit wins for shared settings (by sharedUpdatedAt, the time the
+     edit was made, not the time it synced), but sales are never in it,
+     so a shared edit can never wipe another machine's sales.
+   - pos/device-XXXX   = one doc per machine: only that machine's own
+     sales, jobs, payments, expenses, closings and customers. Each
+     machine uploads only its own doc, so two machines syncing at the
+     same time cannot overwrite each other. On download, all device
+     docs are merged by record id (see merge helpers above), so
+     Dashboard totals add up across all machines, each sale counted once.
+   - Legacy: the old doc held the whole state as a JSON string in
+     .data. If that is still there, syncCloud merges it once, then the
+     shared/device docs replace it. Firestore rules already allow
+     pos/{docId} for signed-in users, so no Firebase console change
+     is needed for the new doc ids. */
+var SHARED_DOC="yumarib-main";
+var CLOUD_DOC=SHARED_DOC;
+var DEVICE_DOC="device-"+DEVICE_ID;
 /* Built-in Firebase config (project yumarib-prints-pos, web app yumarib-pos).
    apiKey is a public web identifier, not a secret password. */
-var DEFAULT_FIREBASE_CONFIG={apiKey:"AIzaSyASGWrKcvr8yShSHz8TrUoOwoi4L9fHLls",authDomain:"yumarib-prints-pos.firebaseapp.com",projectId:"yumarib-prints-pos",storageBucket:"yumarib-prints-pos.firebasestorage.app",messagingSenderId:"91644869311",appId:"1:91644869311:web:6f86e8f3009b4b1184a40a"};
-var cloudDb=null,cloudAuth=null,cloudReady=false,cloudTimer=null,cloudBusy=false,cloudApplied=false;
+var DEFAULT_FIREBASE_CONFIG={apiKey:"<redacted>",authDomain:"yumarib-prints-pos.firebaseapp.com",projectId:"yumarib-prints-pos",storageBucket:"yumarib-prints-pos.firebasestorage.app",messagingSenderId:"91644869311",appId:"1:91644869311:web:6f86e8f3009b4b1184a40a"};
+var cloudDb=null,cloudAuth=null,cloudReady=false,cloudTimer=null,cloudBusy=false,cloudSyncBusy=false,cloudApplied=false;
+var lastSyncCounts={mine:0,other:0,total:0};
 function getFirebaseConfig(){try{var raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(raw){var c=JSON.parse(raw);if(c&&c.apiKey&&c.projectId&&c.appId)return c}}catch(e){}return DEFAULT_FIREBASE_CONFIG}
 function cloudSetStatus(s,d){cloudStatusText=s;var el=$("cloudStatus");if(el)el.textContent=s;var el2=$("cloudStatusDetail");if(el2&&d)el2.textContent=d}
 var cloudStatusText="Not set up yet";
+function renderMachineInfo(){
+  var el=$("machineId");if(el)el.textContent="POS-"+DEVICE_ID+(getDeviceName()?" ("+getDeviceName()+")":"");
+  var nm=$("machineNameInput");if(nm&&document.activeElement!==nm)nm.value=getDeviceName();
+  var sc=$("syncCounts");if(sc)sc.textContent="This machine: "+lastSyncCounts.mine+" sale(s) · Other machines: "+lastSyncCounts.other+" sale(s) · Total merged: "+lastSyncCounts.total+" sale(s).";
+}
+function updateSyncCounts(){
+  var mine=(state.sales||[]).filter(function(s){return s.deviceId===DEVICE_ID||!s.deviceId}).length;
+  lastSyncCounts={mine:mine,other:Math.max(0,(state.sales||[]).length-mine),total:(state.sales||[]).length};
+  renderMachineInfo();
+}
 function queueCloudSync(){if(!getFirebaseConfig())return;if(cloudTimer)clearTimeout(cloudTimer);cloudTimer=setTimeout(function(){saveCloud()},800)}
 async function initCloud(){
   var cfg=getFirebaseConfig();
@@ -769,44 +890,75 @@ async function initCloud(){
     cloudDb=fsMod.getFirestore(app);
     try{await fsMod.enableIndexedDbPersistence(cloudDb)}catch(e){}
     cloudReady=true;cloudBusy=false;
-    window.__yumaribCloud={db:cloudDb,saveCloud:saveCloud,loadCloud:loadCloud};
+    window.__yumaribCloud={db:cloudDb,saveCloud:saveCloud,loadCloud:syncCloud,syncCloud:syncCloud};
+    renderMachineInfo();
     cloudSetStatus("Connected to cloud","Online database is connected. Sales save online as well as in this browser.");
-    await loadCloud();
-  }catch(e){cloudBusy=false;cloudSetStatus("Cloud error: "+(e&&e.message?e.message:e),"Check the internet, then tap Sync now. The POS still works from this browser.");}
+    await syncCloud();
+    if(!window.__yumaribSyncTimer){window.__yumaribSyncTimer=setInterval(function(){if(cloudReady&&!cloudSyncBusy)syncCloud(true)},120000)}
+    window.addEventListener("online",function(){if(cloudReady)syncCloud(true)});
+  }catch(e){cloudBusy=false;cloudSetStatus("Cloud error: "+(e&&e.message?e.message:e),"Check the internet, then tap Sync now. The POS still works from this browser.")}
 }
+function ownDevicePayload(){
+  /* Claim unclaimed legacy records as this machine's, so they are uploaded
+     once. If two machines both claim the same old record, the merge
+     dedupes it by id, so it is still counted once. */
+  ["sales","jobs","payments","expenses","closings","customers"].forEach(function(k){(state[k]||[]).forEach(function(r){if(r&&!r.deviceId){r.deviceId=DEVICE_ID;if(!r._modifiedBy)r._modifiedBy=DEVICE_ID}})});
+  return {kind:"device",deviceId:DEVICE_ID,deviceName:getDeviceName(),updatedAt:Date.now(),
+    sales:ownRecords(state.sales),jobs:ownRecords(state.jobs),payments:ownRecords(state.payments),
+    expenses:ownRecords(state.expenses),closings:ownRecords(state.closings),customers:ownRecords(state.customers)};
+}
+function sharedPayload(){return {kind:"shared",sharedUpdatedAt:state.sharedUpdatedAt||0,updatedAt:Date.now(),products:state.products,users:state.users,shop:state.shop}}
 async function saveCloud(){
   if(!cloudReady||!cloudDb)return false;
   try{
     var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-    var payload=JSON.stringify(state);
-    if(payload.length>900000){cloudSetStatus("Connected to cloud — data too large to sync (over ~900 KB)","Use Download full backup (JSON) and clear old sales if needed.");return false}
-    await fsMod.setDoc(fsMod.doc(cloudDb,"pos",CLOUD_DOC),{data:payload,updatedAt:state.updatedAt||Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
-    cloudSetStatus("Connected to cloud","Last synced "+new Date().toLocaleTimeString()+". Clearing Chrome data will not lose sales.");
+    var dev=ownDevicePayload();
+    var devJson=JSON.stringify(dev);
+    if(devJson.length>900000){cloudSetStatus("Connected to cloud — this machine's data is too large to sync (over ~900 KB)","Use Download full backup (JSON) and clear old sales if needed.");return false}
+    await fsMod.setDoc(fsMod.doc(cloudDb,"pos",DEVICE_DOC),{data:devJson,updatedAt:Date.now(),deviceId:DEVICE_ID,shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    var sh=sharedPayload();var shJson=JSON.stringify(sh);
+    if(shJson.length>900000){cloudSetStatus("Connected to cloud — shop settings too large to sync","Products/users are saved in this browser. Sales on this machine did sync.");return true}
+    await fsMod.setDoc(fsMod.doc(cloudDb,"pos",SHARED_DOC),{data:shJson,updatedAt:Date.now(),shop:state.shop&&state.shop.name?state.shop.name:"YUMARIB PRINTS"});
+    updateSyncCounts();
+    cloudSetStatus("Connected to cloud","Last synced "+new Date().toLocaleTimeString()+". Sales from all machines are merged when they come online.");
     return true;
   }catch(e){cloudSetStatus("Cloud sync failed: "+(e&&e.message?e.message:e),"The sale is still saved in this browser. Tap Sync now when internet is back.");return false}
 }
-async function loadCloud(){
-  if(!cloudReady||!cloudDb)return false;
+/* Full merge sync: download every machine's doc + the shared doc, merge
+   by record id into this machine, then upload this machine's own doc.
+   This is what makes two offline machines add up when they come online.
+   quiet=true (periodic / online) does not flash the status on every run. */
+async function syncCloud(quiet){
+  if(!cloudReady||!cloudDb||cloudSyncBusy)return false;
+  cloudSyncBusy=true;
   try{
     var fsMod=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-    var snap=await fsMod.getDoc(fsMod.doc(cloudDb,"pos",CLOUD_DOC));
-    if(!snap.exists()){await saveCloud();return true}
-    var d=snap.data()||{};if(!d.data)return false;
-    var cloudState=JSON.parse(d.data);
-    var cloudAt=Number(d.updatedAt||cloudState.updatedAt||0),localAt=Number(state.updatedAt||0);
-    var localEmpty=!state.users.length&&!state.sales.length&&!state.jobs.length;
-    if(cloudApplied)return true;
-    if(localEmpty||cloudAt>localAt){
-      state=cloudState;cloudApplied=true;
-      try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
-      cloudSetStatus("Connected to cloud","Cloud data loaded ("+new Date(cloudAt).toLocaleString()+").");
-      if(currentUser){renderAll()}else if(state.users.length){showLogin()}else{showSetup()}
-      return true;
-    }
-    if(localAt>cloudAt){await saveCloud()}
-    cloudApplied=true;return true;
-  }catch(e){cloudSetStatus("Cloud load failed: "+(e&&e.message?e.message:e),"Using this browser's data. Tap Sync now.");return false}
+    var snap=await fsMod.getDocs(fsMod.collection(cloudDb,"pos"));
+    var changed=false,legacy=false;
+    snap.forEach(function(docSnap){
+      var d=docSnap.data()||{};var payload=null;
+      if(d.data){try{payload=JSON.parse(d.data)}catch(e){payload=null}}
+      if(!payload)return;
+      if(payload.kind==="shared"){if(applySharedDoc(state,payload))changed=true;return}
+      if(payload.kind==="device"){var n=mergeCloudRecords(state,payload);if(n)changed=true;return}
+      /* Legacy whole-state doc (old .data format, no kind): merge its
+         records once, and adopt its products/users/shop as shared if newer. */
+      legacy=true;
+      if(payload.sales||payload.jobs){var n2=mergeCloudRecords(state,payload);if(n2)changed=true}
+      if(Array.isArray(payload.products)){var sh={products:payload.products,users:payload.users,shop:payload.shop,sharedUpdatedAt:Number(payload.updatedAt||0)};if(applySharedDoc(state,sh))changed=true}
+    });
+    if(changed){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+    if(legacy||changed){/* After a legacy merge, the next saveCloud writes
+      this machine's device doc + the shared doc, so the old whole-state
+      doc is no longer the only copy. */}
+    var ok=await saveCloud();
+    if(ok&&!quiet)cloudSetStatus("Connected to cloud","Synced "+new Date().toLocaleTimeString()+" — "+lastSyncCounts.total+" sale(s) merged from all machines.");
+    if(changed&&currentUser)renderAll();else if(changed&&state.users.length){showLogin()}
+    updateSyncCounts();
+    cloudSyncBusy=false;return ok;
+  }catch(e){cloudSyncBusy=false;if(!quiet)cloudSetStatus("Cloud load failed: "+(e&&e.message?e.message:e),"Using this browser's data. Tap Sync now.");return false}
 }
+async function loadCloud(){return syncCloud()}
 function downloadBackup(){
   var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   var a=document.createElement("a");a.href=URL.createObjectURL(blob);
@@ -967,7 +1119,7 @@ document.addEventListener("wheel",function(e){
 function upsertCustomer(name,phone){
   if(!name)return null;
   var c=state.customers.filter(function(x){return x.name.toLowerCase()===name.toLowerCase()})[0];
-  if(!c){c={id:uid(),name:name,phone:phone||""};state.customers.push(c)}else if(phone)c.phone=phone;
+  if(!c){c={id:uid(),name:name,phone:phone||""};touchRecord(c);state.customers.push(c)}else{if(phone)c.phone=phone;touchRecord(c)}
   return c;
 }
 function customerBalance(name){
@@ -1259,7 +1411,7 @@ function createJobsFromSale(sale){
     if(sz.raw)desc=desc.replace(sz.raw,"").replace(/\s+/g," ").trim();
     if(!desc)desc=String(it.name||"Job");
     state.jobSeq=(state.jobSeq||0)+1;
-    var job={id:uid(),jobNo:"JOB-"+String(state.jobSeq).padStart(4,"0"),customerName:sale.customerName||"Walk-in",phone:sale.phone||"",description:desc,size:size,qty:it.qty||1,total:total,deposit:paid,depositMethod:sale.payment||"",paid:paid,balance:total-paid,status:"Pending",created:sale.date,updated:sale.date,createdBy:sale.cashierName||sale.cashier||"",history:[],saleId:sale.id,saleReceiptNo:sale.receiptNo,saleItemIndex:x.idx,source:"sale"};
+    var job={id:uid(),deviceId:sale.deviceId||DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,jobNo:"JOB-"+DEVICE_ID+"-"+String(state.jobSeq).padStart(4,"0"),customerName:sale.customerName||"Walk-in",phone:sale.phone||"",description:desc,size:size,qty:it.qty||1,total:total,deposit:paid,depositMethod:sale.payment||"",paid:paid,balance:total-paid,status:"Pending",created:sale.date,updated:sale.date,createdBy:sale.cashierName||sale.cashier||"",history:[],saleId:sale.id,saleReceiptNo:sale.receiptNo,saleItemIndex:x.idx,source:"sale"};
     job.history.push({at:sale.date,by:job.createdBy,action:"Created",detail:"Created automatically from sale Receipt "+(sale.receiptNo||"")+" (charged "+fmtDT(sale.date)+"). "+(size?("Size "+size+". "):"")+"Quantity "+(it.qty||1)+". Total "+fmt(total)+", deposit "+fmt(paid)+" ("+(sale.payment||"")+")"+", paid "+fmt(paid)+", balance "+fmt(total-paid)+". Status: Pending."});
     state.jobs.push(job);created.push(job);
   });
@@ -1285,7 +1437,7 @@ $("chargeBtn").onclick=function(){
   if(cashPart>0&&cashReceived<cashPart){alert("Cash received is less than the cash part of "+fmt(cashPart)+".");return}
   var paySummary=payments.length?payments.map(function(p){return p.method}).filter(function(v,i,a){return a.indexOf(v)===i}).join(" + "):"Credit";
   state.receiptSeq=(state.receiptSeq||0)+1;
-  var sale={id:uid(),receiptNo:"R"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
+  var sale={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,receiptNo:"R"+DEVICE_ID+"-"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
     items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice,flatAmount:!!it.flatAmount}}),
     subtotal:calc.subtotal,discountType:$("discountType").value,discountValue:Number($("discountValue").value||0),discount:calc.discount,total:calc.total,
     paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":paySummary,payments:payments,customerName:name||"",phone:phone||"",
@@ -1443,7 +1595,7 @@ $("saveClosingBtn").onclick=function(){
   var d=$("dashDate").value||todayStr();
   var expectedText=$("closingExpected").textContent.replace(/[₦,]/g,"");
   var expected=Number(expectedText)||0;var counted=Number($("countedCash").value||0);
-  var rec={date:d,countedCash:counted,expectedCash:expected,difference:closingDiff(expected,counted),savedAt:new Date().toISOString(),by:currentUser.name};
+  var rec=touchRecord({id:uid(),date:d,countedCash:counted,expectedCash:expected,difference:closingDiff(expected,counted),savedAt:new Date().toISOString(),by:currentUser.name});
   var i=state.closings.findIndex(function(c){return c.date===d});if(i>=0)state.closings[i]=rec;else state.closings.push(rec);
   save();renderClosing(d);renderAdmin();
 };
@@ -1547,7 +1699,7 @@ function renderJobs(){
   box.querySelectorAll("[data-status]").forEach(function(sel){sel.onchange=function(){
     var j=state.jobs.filter(function(x){return x.id===sel.dataset.status})[0];if(!j)return;
     if(sel.value==="Collected"&&!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding. Record a payment first.");sel.value=j.status;return}
-    var oldStatus=j.status;j.status=sel.value;addJobHistory(j,"Status changed","Status changed from "+oldStatus+" to "+sel.value+". Balance "+fmt(j.balance)+".");save();renderJobs();
+    var oldStatus=j.status;j.status=sel.value;j.updated=new Date().toISOString();addJobHistory(j,"Status changed","Status changed from "+oldStatus+" to "+sel.value+". Balance "+fmt(j.balance)+".");touchRecord(j);save();renderJobs();
   }});
   box.querySelectorAll("[data-paybtn]").forEach(function(b){b.onclick=function(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.paybtn})[0];if(!j)return;
@@ -1555,14 +1707,14 @@ function renderJobs(){
     var method=box.querySelector('[data-paymethod="'+j.id+'"]').value;
     if(amt<=0){alert("Enter an amount to record.");return}
     if(amt>j.balance){alert("Amount is more than the balance of "+fmt(j.balance)+".");return}
-    j.paid+=amt;j.balance-=amt;
+    j.paid+=amt;j.balance-=amt;j.updated=new Date().toISOString();touchRecord(j);
     if(j.saleId){
       /* Money lives in the sale: a payment on this job is a payment on its sale too. Do not also push a separate payment, or the cash would be counted twice. */
       var ls=getSale(j.saleId);
-      if(ls){var _pb=Number(ls.paid||0);ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0));mergeSalePayment(ls,method,amt,_pb)}
+      if(ls){var _pb=Number(ls.paid||0);ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0));mergeSalePayment(ls,method,amt,_pb);touchRecord(ls)}
       addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received on Receipt "+(j.saleReceiptNo||"")+". Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
     }else{
-      state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
+      state.payments.push(touchRecord({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName}));
       addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received. Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
     }
     save();renderJobs();renderDashboard();
@@ -1570,7 +1722,7 @@ function renderJobs(){
   box.querySelectorAll("[data-collect]").forEach(function(b){b.onclick=function(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.collect})[0];if(!j)return;
     if(!canCollectJob(j)){alert("Cannot collect this job. Balance of "+fmt(j.balance)+" is still outstanding.");return}
-    j.status="Collected";addJobHistory(j,"Collected","Job collected. Paid in full "+fmt(j.paid)+", balance "+fmt(j.balance)+".");save();renderJobs();
+    j.status="Collected";j.updated=new Date().toISOString();addJobHistory(j,"Collected","Job collected. Paid in full "+fmt(j.paid)+", balance "+fmt(j.balance)+".");touchRecord(j);save();renderJobs();
   }});
 }
 $("addJobBtn").onclick=function(){
@@ -1581,7 +1733,7 @@ $("addJobBtn").onclick=function(){
   if(dep<0||dep>total){$("jobErr").textContent="Deposit must be between ₦0 and the total.";return}
   $("jobErr").textContent="";
   state.jobSeq=(state.jobSeq||0)+1;
-  var job={id:uid(),jobNo:"JOB-"+String(state.jobSeq).padStart(4,"0"),customerName:name,phone:phone,description:desc||"Job",size:size,qty:qty,total:total,deposit:dep,depositMethod:depMethod,paid:dep,balance:total-dep,status:"Pending",created:new Date().toISOString(),updated:new Date().toISOString(),createdBy:currentUser?currentUser.name:"",history:[]};
+  var job={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,jobNo:"JOB-"+DEVICE_ID+"-"+String(state.jobSeq).padStart(4,"0"),customerName:name,phone:phone,description:desc||"Job",size:size,qty:qty,total:total,deposit:dep,depositMethod:depMethod,paid:dep,balance:total-dep,status:"Pending",created:new Date().toISOString(),updated:new Date().toISOString(),createdBy:currentUser?currentUser.name:"",history:[]};
   job.history.push({at:job.created,by:job.createdBy,action:"Created",detail:"Job created. "+(size?("Size "+size+". "):"")+(qty!==1?("Quantity "+qty+". "):"")+"Total "+fmt(total)+", deposit "+fmt(dep)+" ("+depMethod+"), paid "+fmt(dep)+", balance "+fmt(total-dep)+". Status: Pending."});
   state.jobs.push(job);
   upsertCustomer(name,phone);save();
@@ -1595,14 +1747,14 @@ function renderProducts(){
   var list=state.products.filter(function(p){return !q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)});
   $("prodList").innerHTML=list.length?'<table><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>'+list.map(function(p){
     return '<tr><td>'+esc(p.name)+'<br><span class="muted">'+esc(p.unit||"per 1")+'</span></td><td>'+esc(p.category)+'</td><td>'+fmt(p.price)+'</td><td>'+(p.stock===null||p.stock===undefined?"Not tracked":p.stock+(p.stock===0?' <span class="stock-warn">Out of stock</span>':p.stock<=p.lowAt?' <span class="stock-low">Low</span>':""))+'</td><td><button class="btn-ghost btn btn-sm" data-edit="'+p.id+'">Edit</button> <button class="btn-danger btn btn-sm" data-del="'+p.id+'">Delete</button></td></tr>'}).join("")+'</table>':'<p class="muted">No products match.</p>';
-  $("prodList").querySelectorAll("[data-del]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this product?"))return;state.products=state.products.filter(function(p){return p.id!==b.dataset.del});save();renderProducts();renderSell()}});
+  $("prodList").querySelectorAll("[data-del]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this product?"))return;state.products=state.products.filter(function(p){return p.id!==b.dataset.del});touchShared();save();renderProducts();renderSell()}});
   $("prodList").querySelectorAll("[data-edit]").forEach(function(b){b.onclick=function(){
     var p=state.products.filter(function(x){return x.id===b.dataset.edit})[0];if(!p)return;
     var name=prompt("Product name",p.name);if(name===null)return;
     var price=Number(prompt("Price (₦)",p.price));if(isNaN(price)||price<0)return;
     var stockRaw=prompt("Stock (blank = not tracked)",p.stock===null||p.stock===undefined?"":p.stock);if(stockRaw===null)return;
     p.name=name.trim()||p.name;p.price=price;p.stock=stockRaw===""?null:Math.max(0,Number(stockRaw)||0);
-    save();renderProducts();renderSell();
+    touchShared();save();renderProducts();renderSell();
   }});
 }
 $("prodSearch").addEventListener("input",renderProducts);
@@ -1612,7 +1764,7 @@ $("addProdBtn").onclick=function(){
   if(price<0){$("prodErr").textContent="Price cannot be negative.";return}
   $("prodErr").textContent="";
   state.products.push({id:uid(),name:name,category:cat,price:price,unit:unit,stock:stockRaw===""?null:Math.max(0,Number(stockRaw)||0),lowAt:5});
-  save();$("prodName").value="";$("prodPrice").value="";$("prodUnit").value="";$("prodStock").value="";renderProducts();renderSell();
+  touchShared();save();$("prodName").value="";$("prodPrice").value="";$("prodUnit").value="";$("prodStock").value="";renderProducts();renderSell();
 };
 /* ---------- admin ---------- */
 function switchAdmin(sec){
@@ -1632,7 +1784,7 @@ function saleRow(s){
 }
 function bindSaleRows(box){
   box.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
-  box.querySelectorAll("[data-v]").forEach(function(b){b.onclick=function(){if(!confirm("Void this sale? It will not count in totals."))return;var s=getSale(b.dataset.v);if(s){s.voided=true;save();renderAdminSales();renderDashboard()}}});
+  box.querySelectorAll("[data-v]").forEach(function(b){b.onclick=function(){if(!confirm("Void this sale? It will not count in totals."))return;var s=getSale(b.dataset.v);if(s){s.voided=true;touchRecord(s);save();renderAdminSales();renderDashboard()}}});
 }
 function renderAdminSales(){
   var d=$("adminSalesDate").value||todayStr();$("adminSalesDate").value=d;
@@ -1651,7 +1803,7 @@ function renderExpenses(){
 $("addExpBtn").onclick=function(){
   var t=$("expTitle").value.trim(),a=Number($("expAmount").value||0),d=$("expDate").value||todayStr();
   if(!t||a<=0){$("expErr").textContent="Enter what it was for and an amount above ₦0.";return}
-  $("expErr").textContent="";state.expenses.push({id:uid(),title:t,amount:a,date:d+"T12:00:00"});save();$("expTitle").value="";$("expAmount").value="";renderExpenses();renderAdmin();
+  $("expErr").textContent="";state.expenses.push(touchRecord({id:uid(),title:t,amount:a,date:d+"T12:00:00"}));save();$("expTitle").value="";$("expAmount").value="";renderExpenses();renderAdmin();
 };
 function renderReport(){
   var from=$("repFrom").value||todayStr(),to=$("repTo").value||todayStr();
@@ -1711,9 +1863,9 @@ function renderCustomers(){
     var bal=customerBalance(name);if(amt>bal){alert("Amount is more than the balance of "+fmt(bal)+".");return}
     var remaining=amt;
     var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
-    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));var _pb=Number(s.paid||0);s.paid+=take;s.balance-=take;mergeSalePayment(s,method,take,_pb);remaining-=take});
-    state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;remaining-=take});
-    state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name});
+    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));var _pb=Number(s.paid||0);s.paid+=take;s.balance-=take;mergeSalePayment(s,method,take,_pb);touchRecord(s);remaining-=take});
+    state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;touchRecord(j);remaining-=take});
+    state.payments.push(touchRecord({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name}));
     save();renderCustomers();renderDashboard();
   }});
 }
@@ -1749,14 +1901,14 @@ $("saveUserBtn").onclick=function(){
   state.jobs.forEach(function(j){if(j.createdBy===oldName)j.createdBy=n;(j.history||[]).forEach(function(h){if(h.by===oldName)h.by=n})});
   state.closings.forEach(function(c){if(c.by===oldName)c.by=n});
   if(currentUser&&currentUser.id===u.id){$("headerUser").textContent=n;$("headerRole").textContent=r==="admin"?"ADMIN":"Staff"}
-  $("editUserErr").textContent="";save();closeEditUser();renderUsers();renderLoginUsers();renderAll();
+  $("editUserErr").textContent="";touchShared();save();closeEditUser();renderUsers();renderLoginUsers();renderAll();
 };
 $("addUserBtn").onclick=function(){
   var u=$("newUsername").value.trim(),n=$("newName").value.trim(),p=$("newPassword").value,r=$("newRole").value;
   if(!u||!n){$("userErr").textContent="Enter a username and name.";return}
   if(p.length<4){$("userErr").textContent="Password must be at least 4 characters.";return}
   if(state.users.some(function(x){return x.username.toLowerCase()===u.toLowerCase()})){$("userErr").textContent="That username is already taken.";return}
-  $("userErr").textContent="";state.users.push({id:uid(),username:u,name:n,password:p,role:r});save();$("newUsername").value="";$("newName").value="";$("newPassword").value="";renderUsers();renderLoginUsers();
+  $("userErr").textContent="";state.users.push({id:uid(),username:u,name:n,password:p,role:r});touchShared();save();$("newUsername").value="";$("newName").value="";$("newPassword").value="";renderUsers();renderLoginUsers();
 };
 function renderShop(){
   $("shopNameInput").value=state.shop.name||"YUMARIB PRINTS";
@@ -1765,9 +1917,10 @@ function renderShop(){
 }
 $("logoInput").addEventListener("change",function(){
   var f=$("logoInput").files[0];if(!f)return;
-  var reader=new FileReader();reader.onload=function(){state.shop.logo=reader.result;state.shop.logoCustom=true;save();renderShop()};reader.readAsDataURL(f);
+  var reader=new FileReader();reader.onload=function(){state.shop.logo=reader.result;state.shop.logoCustom=true;touchShared();save();renderShop()};reader.readAsDataURL(f);
 });
 $("saveShopBtn").onclick=function(){
+  touchShared();
   state.shop.name=$("shopNameInput").value.trim()||"YUMARIB PRINTS";
   state.shop.paperWidth=document.querySelector('input[name="paper"]:checked').value==="58"?58:80;
   save();$("shopSaved").textContent="Shop settings saved.";renderShop();
@@ -1785,7 +1938,9 @@ $("saveShopBtn").onclick=function(){
       cloudReady=false;cloudApplied=false;initCloud();
     }catch(e){$("cloudSaved").textContent="That is not a valid Firebase config. Paste the whole JSON object from Firebase."}
   };
-  $("syncNowBtn").onclick=function(){$("cloudSaved").textContent="Syncing...";initCloud().then(function(){return saveCloud()}).then(function(ok){$("cloudSaved").textContent=ok?"Synced to cloud.":"Sync failed, see status above."})};
+  $("syncNowBtn").onclick=function(){$("cloudSaved").textContent="Syncing all machines...";initCloud().then(function(){return syncCloud()}).then(function(ok){$("cloudSaved").textContent=ok?"Synced. Dashboard now shows sales from all machines.":"Sync failed, see status above.";renderMachineInfo()})};
+  var mn=$("machineNameInput");if(mn){mn.value=getDeviceName();mn.addEventListener("change",function(){setDeviceName(mn.value.trim());renderMachineInfo();queueCloudSync()})}
+  renderMachineInfo();
   $("exportBackupBtn").onclick=downloadBackup;
   $("importBackupBtn").onclick=function(){$("importBackupFile").click()};
   $("importBackupFile").addEventListener("change",function(){restoreBackupFile(this.files[0]);this.value=""});

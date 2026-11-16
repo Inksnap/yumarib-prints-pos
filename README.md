@@ -98,3 +98,26 @@ A sale or job can be paid in parts, with a different method for each part. Every
 
 ## Current sale cleanups (2026-11-16)
 At the user's request, from the photo of the Current sale panel (A4 300g, qty 500, total ₦100,000): removed the Price collected box in front of the quantity, removed the - and + buttons around the quantity (quantity is only a box to type in), and removed the split-payment description text under "Payments (split payment)". Split payment rows, Paid so far, Balance owed, discount, totals, Charge and receipt are unchanged. Large Format / Custom Job manual price entry is unchanged.
+
+## Multi-machine sync (different staff, different machines)
+
+Each POS machine gets its own code, e.g. POS-A1B2, shown in Admin > Shop > Cloud backup
+("This machine"). Give each machine a name there, e.g. Front Desk.
+
+- Each machine works offline and saves its own sales locally.
+- When it comes online it uploads only its own records to Firestore
+  (pos/device-XXXX), and downloads and merges the other machines' records.
+  Dashboard, sales by staff, totals by category, money by payment
+  (Cash / POS / Transfer, including split payments), Still owed and Jobs
+  then add up across ALL machines, each sale counted once.
+- Receipt numbers are unique per machine, e.g. R-A1B2-0001 and R-C3D4-0001,
+  and job numbers are JOB-A1B2-0001, so two machines never clash.
+- Products, users and shop settings are shared (pos/yumarib-main);
+  the last edit made wins for those, but a shared edit can never wipe
+  another machine's sales.
+- Tap "Sync now" in Admin > Shop to merge immediately. The POS also
+  syncs automatically every 2 minutes when online, and when it comes
+  back online.
+- The old single-document sync (last writer won, other machine's
+  offline sales were lost) is gone. If the old cloud document is still
+  there, the first sync with this version merges it once.
