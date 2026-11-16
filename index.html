@@ -245,7 +245,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
             <div class="product-grid" id="productGrid"></div>
 <div class="card" id="lfCalcCard" style="margin-bottom:12px">
         <h3 style="margin:0 0 4px">Large Format calculator</h3>
-        <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV Print and Cut is &#8358;400 per square foot, SAV Print Only is &#8358;180 per square foot. Both SAV types are charged per square inch. If you already collected a price, type it in Price collected and it will be used instead of the calculated price.</p>
+        <p class="muted" style="margin:0 0 8px">Flex is charged per square foot. SAV Print and Cut is &#8358;400 per square foot, SAV Print Only is &#8358;180 per square foot. Both SAV types are charged per square inch. Type the Amount yourself before adding to sale. The calculated price below is only a guide, it is not added automatically.</p>
         <div class="pay-pills" id="lfTypePills">
           <button class="pill active" data-lf="Flex" type="button">Flex</button>
           <button class="pill" data-lf="SAV Print and Cut" type="button">SAV Print and Cut</button>
@@ -255,7 +255,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
           <div><label id="lfWidthLabel">Width (feet)</label><input id="lfWidth" type="number" min="0" step="0.5" placeholder="5"></div>
           <div><label id="lfHeightLabel">Height (feet)</label><input id="lfHeight" type="number" min="0" step="0.5" placeholder="7"></div>
           <div><label>Quantity</label><input id="lfQty" type="number" min="1" step="1" value="1"></div>
-          <div><label>Price collected (&#8358;) - per banner / per one (optional)</label><input id="lfCollected" type="number" min="0" step="1" placeholder="Leave empty to use calculated price" class="price-collected"></div>
+          <div><label>Amount (&#8358;) - per banner / per one * Type the amount before adding to sale</label><input id="lfCollected" type="number" min="0" step="1" placeholder="Type the amount, e.g. 5600" class="price-collected"></div>
         </div>
         <div id="lfResult" class="card" style="margin-top:10px;background:var(--surface2);box-shadow:none"><p class="muted" style="margin:0">Enter width and height to see the price.</p></div>
         <p id="lfErr" class="err"></p>
@@ -263,14 +263,14 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       </div>
       <div class="card" id="customJobCard" style="margin-top:12px">
         <h3 style="margin:0 0 4px">Custom job</h3>
-        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Type the size and the price is calculated automatically. Flex: width x height x &#8358;160. SAV Print and Cut: width x height x &#8358;400 &divide; 144 per one. SAV Print Only: width x height x &#8358;180 &divide; 144 per one. If you already collected a price, tap the Price box and type it, it will be used instead.</p>
+        <p class="muted" style="margin:0 0 8px">Large Format / UV Print. Type the size, then type the Amount yourself before adding to sale. The calculated price is only a guide, it is not added automatically. Flex: width x height x &#8358;160. SAV Print and Cut: width x height x &#8358;400 &divide; 144 per one. SAV Print Only: width x height x &#8358;180 &divide; 144 per one.</p>
         <div class="form-row">
           <div><label>Job type</label><select id="customType"><option value="SAV Print and Cut" selected>SAV Print and Cut</option><option value="SAV Print Only">SAV Print Only</option><option value="Flex">Flex</option><option value="Other">Other</option></select></div>
           <div id="customOtherWrap" style="display:none"><label>Job name</label><input id="customOtherName" value="Custom job" placeholder="Job name"></div>
           <div><label id="customWidthLabel">Width (inches)</label><input id="customWidth" type="number" min="0" step="0.5" placeholder="9"></div>
           <div><label id="customHeightLabel">Height (inches)</label><input id="customHeight" type="number" min="0" step="0.5" placeholder="15"></div>
           <div><label>Quantity</label><input id="customQty" type="number" min="1" step="1" value="1"></div>
-          <div><label>Price (&#8358;) - auto, tap to change to price collected</label><input id="customPrice" type="number" min="0" step="1" placeholder="0"></div>
+          <div><label>Amount (&#8358;) - type it before adding to sale</label><input id="customPrice" type="number" min="0" step="1" placeholder="Type the amount"></div>
         </div>
         <div id="customCalc" class="card" style="margin-top:10px;background:var(--surface2);box-shadow:none"><p class="muted" style="margin:0">Enter width and height to see the price.</p></div>
         <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1102,13 +1102,13 @@ function calcLargeFormat(type,w,h,qty){
   return null;
 }
 /* ---------- Custom Job (always at the bottom of Sell) ----------
-   Price is calculated automatically as soon as width and height are typed.
-   Flex uses feet and x160, SAV Print and Cut uses inches and x400/144,
-   SAV Print Only uses inches and x180/144. Staff never have
-   to type the price for Flex or either SAV type. Staff can still tap the Price
-   box and type the price they collected, that overrides the calculated
-   price for this one sale only. Changing the size or type clears the
-   override and the price is calculated again. "Other" keeps a manual price. */
+   Amount is NOT automatic, for now. Staff type the size, then type the
+   Amount (price) themselves before adding to sale. The calculated price
+   is only a guide, shown below the form: Flex uses feet and x160,
+   SAV Print and Cut uses inches and x400/144, SAV Print Only uses
+   inches and x180/144. Changing the size or type does NOT clear a typed
+   Amount and never fills the Amount in automatically. "Other" also
+   uses a manually typed Amount. */
 var customManual=false;
 function customCalc(){
   var type=$("customType").value;
@@ -1126,28 +1126,30 @@ function renderCustomCalc(){
     return;
   }
   var c=customCalc();
-  if(!c){if(!customManual)priceEl.value="";box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the price.</p>';return}
+  if(!c){box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the calculated guide price, then type the Amount above before adding to sale.</p>';return}
   if(customManual){
     var manualUnit=Math.floor(Number(priceEl.value||0));
     if(manualUnit>0){
       var qtyM=Math.max(1,Math.floor(Number($("customQty").value||1)));
       var qtyLineM=qtyM>1?'<div class="tot-row"><span>Quantity</span><strong>'+qtyM+'</strong></div>':"";
       box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(manualUnit)+' each</strong></div>'+
-        '<div class="muted">Price collected: '+fmt(manualUnit)+' each. Calculated price was '+fmt(c.unit)+' each.</div>'+qtyLineM+
+        '<div class="muted">Amount typed: '+fmt(manualUnit)+' each. Calculated guide was '+fmt(c.unit)+' each.</div>'+qtyLineM+
         '<div class="tot-row grand"><span>Total</span><strong>'+fmt(manualUnit*qtyM)+'</strong></div>';
       return;
     }
     customManual=false;
   }
-  priceEl.value=String(c.unit);
+  /* Amount is manual: never fill the Amount box from the calculation. */
   var qtyLine=c.qty>1?'<div class="tot-row"><span>Quantity</span><strong>'+c.qty+'</strong></div>':"";
-  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(c.unit)+' each</strong></div>'+
+  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>Calculated guide: '+fmt(c.unit)+' each</strong></div>'+
     '<div class="muted">'+esc(c.formula)+'</div>'+qtyLine+
-    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(c.total)+'</strong></div>';
+    '<div class="tot-row grand"><span>Total (guide only)</span><strong>'+fmt(c.total)+'</strong></div>'+
+    '<div class="muted">Type the Amount above before adding to sale. The calculated price is only a guide.</div>';
 }
-/* Changing the size or type clears a price-collected override, so the price
-   is calculated again. Changing only the quantity keeps the override. */
-["customType","customWidth","customHeight"].forEach(function(id){$(id).addEventListener("input",function(){customManual=false;renderCustomCalc()});$(id).addEventListener("change",function(){customManual=false;renderCustomCalc()})});
+/* Amount is manual: changing the size or type never clears a typed Amount
+   and never fills the Amount in automatically. It only updates the
+   calculated guide shown below the form. */
+["customType","customWidth","customHeight"].forEach(function(id){$(id).addEventListener("input",renderCustomCalc);$(id).addEventListener("change",renderCustomCalc)});
 $("customQty").addEventListener("input",renderCustomCalc);$("customQty").addEventListener("change",renderCustomCalc);
 $("customPrice").addEventListener("input",function(){customManual=true;renderCustomCalc()});
 $("customPrice").addEventListener("change",function(){if(Number($("customPrice").value||0)>0)customManual=true;renderCustomCalc()});
@@ -1165,12 +1167,14 @@ $("addCustomBtn").onclick=function(){
   }
   var c=customCalc();
   if(!c){$("customErr").textContent="Enter width and height, e.g. SAV Print and Cut 9 and 15.";return}
-  var collected=customManual?collectedPrice($("customPrice").value):null;
-  var usePrice=collected||c.unit;
+  /* Amount is manual, for now: it must be typed in before adding to sale.
+     The calculated price is only a guide and is never used on its own. */
+  var usePrice=collectedPrice($("customPrice").value);
+  if(!usePrice){$("customErr").textContent="Type the Amount first before adding to sale.";return}
   $("customErr").textContent="";
-  cart.push({key:uid(),productId:null,name:c.name,category:cat,price:usePrice,qty:c.qty,manualPrice:!!collected});
-  customManual=false;
-  renderSell();
+  cart.push({key:uid(),productId:null,name:c.name,category:cat,price:usePrice,qty:c.qty,manualPrice:true});
+  customManual=false;$("customPrice").value="";
+  renderSell();renderCustomCalc();
 };
 /* ---------- Large Format calculator ---------- */
 var lfType="Flex";
@@ -1181,38 +1185,36 @@ function renderLfCalc(){
   $("lfWidthLabel").textContent=lfType==="Flex"?"Width (feet)":"Width (inches)";
   $("lfHeightLabel").textContent=lfType==="Flex"?"Height (feet)":"Height (inches)";
   var collected=collectedPrice($("lfCollected").value),c=lfCalc(),box=$("lfResult");
-  if(collected){
-    var qtyC=Math.max(1,Math.floor(Number($("lfQty").value||1)));
-    var nmC=c?c.name:lfType;
-    var noteC=c?'<div class="muted">Price collected: '+fmt(collected)+' each. Calculated price was '+fmt(c.unit)+' each.</div>':'<div class="muted">Price collected, no size entered.</div>';
-    var qtyLineC=qtyC>1?'<div class="tot-row"><span>Quantity</span><strong>'+qtyC+'</strong></div>':"";
-    box.innerHTML='<div class="tot-row"><span>'+esc(nmC)+'</span><strong>'+fmt(collected)+' each</strong></div>'+noteC+qtyLineC+
-      '<div class="tot-row grand"><span>Total</span><strong>'+fmt(collected*qtyC)+'</strong></div>';
-    $("addLfBtn").disabled=false;return;
+  if(!c){box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the calculated guide price, then type the Amount above before adding to sale.</p>';$("addLfBtn").disabled=true;return}
+  if(!collected){
+    /* Amount is manual: show the calculated price only as a guide, and
+       keep Add to sale disabled until staff type the Amount. */
+    var qtyLine=c.qty>1?'<div class="tot-row"><span>Quantity</span><strong>'+c.qty+'</strong></div>':"";
+    box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>Calculated guide: '+fmt(c.unit)+' each</strong></div>'+
+      '<div class="muted">'+esc(c.formula)+'</div>'+qtyLine+
+      '<div class="tot-row grand"><span>Total (guide only)</span><strong>'+fmt(c.total)+'</strong></div>'+
+      '<div class="muted">Type the Amount above before adding to sale. The calculated price is only a guide.</div>';
+    $("addLfBtn").disabled=true;return;
   }
-  if(!c){box.innerHTML='<p class="muted" style="margin:0">Enter width and height to see the price.</p>';$("addLfBtn").disabled=true;return}
+  var qtyC=Math.max(1,Math.floor(Number($("lfQty").value||1)));
+  var qtyLineC=qtyC>1?'<div class="tot-row"><span>Quantity</span><strong>'+qtyC+'</strong></div>':"";
+  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(collected)+' each</strong></div>'+
+    '<div class="muted">Amount typed: '+fmt(collected)+' each. Calculated guide was '+fmt(c.unit)+' each.</div>'+qtyLineC+
+    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(collected*qtyC)+'</strong></div>';
   $("addLfBtn").disabled=false;
-  var qtyLine=c.qty>1?'<div class="tot-row"><span>Quantity</span><strong>'+c.qty+'</strong></div>':"";
-  box.innerHTML='<div class="tot-row"><span>'+esc(c.name)+'</span><strong>'+fmt(c.unit)+' each</strong></div>'+
-    '<div class="muted">'+esc(c.formula)+'</div>'+qtyLine+
-    '<div class="tot-row grand"><span>Total</span><strong>'+fmt(c.total)+'</strong></div>';
 }
 document.querySelectorAll("#lfTypePills .pill").forEach(function(b){b.onclick=function(){lfType=b.dataset.lf;document.querySelectorAll("#lfTypePills .pill").forEach(function(x){x.classList.toggle("active",x===b)});renderLfCalc()}});
 ["lfWidth","lfHeight","lfQty","lfCollected"].forEach(function(id){$(id).addEventListener("input",renderLfCalc)});
 $("addLfBtn").onclick=function(){
-  var collected=collectedPrice($("lfCollected").value);
-  if(collected){
-    var qty=Math.max(1,Math.floor(Number($("lfQty").value||1)));
-    var c2=lfCalc();
-    cart.push({key:uid(),productId:null,name:c2?c2.name:lfType,category:"Large Format",price:collected,qty:qty,manualPrice:true});
-    $("lfErr").textContent="";
-    $("lfWidth").value="";$("lfHeight").value="";$("lfCollected").value="";$("lfQty").value=1;
-    renderSell();renderLfCalc();return;
-  }
   var c=lfCalc();
   if(!c){$("lfErr").textContent="Enter width, height and quantity first. Example: Flex 5 by 7 feet, or SAV Print and Cut 5 by 7 inches.";return}
+  /* Amount is manual, for now: it must be typed in before adding to sale.
+     The calculated price is only a guide and is never used on its own. */
+  var collected=collectedPrice($("lfCollected").value);
+  if(!collected){$("lfErr").textContent="Type the Amount first before adding to sale.";return}
+  var qty=Math.max(1,Math.floor(Number($("lfQty").value||1)));
   $("lfErr").textContent="";
-  cart.push({key:uid(),productId:null,name:c.name,category:"Large Format",price:c.unit,qty:c.qty});
+  cart.push({key:uid(),productId:null,name:c.name,category:"Large Format",price:collected,qty:qty,manualPrice:true});
   $("lfWidth").value="";$("lfHeight").value="";$("lfCollected").value="";$("lfQty").value=1;
   renderSell();renderLfCalc();
 };
