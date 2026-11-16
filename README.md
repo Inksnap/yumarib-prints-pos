@@ -87,3 +87,34 @@ Staff can type the price they already collected, instead of only using a saved p
 - Current sale: every sale line has its own "Price collected" box next to the quantity. Type a different price there and the line total and the sale total update at once. A "· collected" tag marks lines where the price was changed, and the receipt shows "Price collected" on those lines. Typing 0 or clearing it puts the original price back.
 The item is added to the Current sale as e.g. "Flex 5x7 ft", "SAV Print and Cut 9x15 in" or "SAV Print Only 9x15 in", with size, quantity and the typed amount, shows on the receipt, and counts under Large Format in Dashboard totals. The Large Format card shows the typed amount only, never a price x quantity total. Normal products still work as price x quantity. No other prices changed.
 Group counts: 29 seeded products in total. Large Format shows (0) because Flex and both SAV types are not seeded products, they are entered through the Large Format / Custom Job cards. UV Print shows (3): UV Pen, UV Diary, UV Flask. Borderless shows (3): A2, A1, Pressing of Borderless. Lanyards shows (2). If a machine still shows UV Print (0) or Borderless (2), it is on an old cached version, reload the page once to pick up the new version.
+
+## Customer Display (dual-screen POS machine, 2026-11-16)
+The Hippoint machine has two screens: one for staff, one facing the customer.
+Before this change both screens showed the same thing, so a customer could
+see Dashboard, Jobs, Admin and totals when staff clicked Dashboard.
+
+Fix: the Customer Display is a SEPARATE window, not a mode of the operator
+screen. The operator screen stays full POS on the main screen, always.
+- In Sell, tap "Open Customer Screen" (in the Current sale panel). It opens
+  a new window with ?customer=1.
+- Drag that window to the customer-facing screen and maximise it there.
+- It shows ONLY the current sale: shop name, items, quantities, line
+  totals, Subtotal, Discount, Total, and after Charge a Thank you / Paid
+  message with receipt number. It never shows Dashboard, Jobs, Products,
+  Admin, expenses, reports, customer list or sales history, and it never
+  asks for a login.
+- Live sync: the operator screen publishes only the current sale to
+  localStorage key yumarib-pos-live-v1 whenever the sale changes, and
+  the customer window updates at once (storage event + 1 second poll).
+  After Charge it holds the Thank you screen for 20 seconds, or until
+  the next sale starts.
+
+Windows setting (this part no software can fix): if Windows is set to
+Duplicate / Mirror, both screens always show the same thing.
+1. Right-click the desktop, Display settings.
+2. Under Multiple displays choose Extend these displays, Apply.
+3. Open the POS on the main (staff) screen and log in.
+4. Tap "Open Customer Screen", drag that window to the customer screen,
+   maximise it there. Leave it open all day.
+5. On the staff screen, click Dashboard or anything else: the customer
+   screen does not change, it still shows only the current sale.
