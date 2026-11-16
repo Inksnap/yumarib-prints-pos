@@ -509,6 +509,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
+      <p class="muted">POS code version: <strong>v35</strong> — if this still says v34 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -2004,6 +2005,11 @@ $("saveShopBtn").onclick=function(){
 };
 /* Cloud backup buttons (Admin > Shop). Config is stored in this browser only. */
 (function(){
+  /* Startup cleanup (v35): if this browser ever saved a bad cloud key
+     (e.g. a masked/redacted value), drop it now so the built-in key is used.
+     getFirebaseConfig() also does this, but do it explicitly here so the
+     Admin screen can say so. */
+  try{var _raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(_raw){var _c;try{_c=JSON.parse(_raw)}catch(e){_c=null}if(!isValidFirebaseConfig(_c)){localStorage.removeItem(FIREBASE_CONFIG_KEY);var _cs=$("cloudSaved");if(_cs)_cs.textContent="Cleared a bad saved cloud key in this browser, now using the built-in key. Tap Sync now.";}}}catch(e){}
   var cfgBtn=$("saveFirebaseConfigBtn");if(!cfgBtn)return;
   var cfgEl=$("firebaseConfigInput");
   try{var ex=getFirebaseConfig();if(ex){var disp={apiKey:"",authDomain:ex.authDomain,projectId:ex.projectId,storageBucket:ex.storageBucket,messagingSenderId:ex.messagingSenderId,appId:ex.appId};cfgEl.value=JSON.stringify(disp);var mk=$("firebaseConfigMasked");if(mk)mk.textContent="Built-in key: "+maskedApiKey(ex.apiKey)+" (masked, shown here only — never saved from this box)";}}catch(e){}
