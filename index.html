@@ -472,6 +472,18 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     </div>
     <p id="userErr" class="err"></p>
     <button class="btn" id="addUserBtn" style="margin-top:10px">Create user</button>
+    <div id="editUserBox" class="card" style="display:none;margin-top:12px">
+      <h4 style="margin-top:0">Edit user</h4>
+      <div class="form-row">
+        <div><label>Name</label><input id="editName" autocomplete="off"></div>
+        <div><label>Username</label><input id="editUsername" autocomplete="off"></div>
+        <div><label>New password (leave blank to keep the current password)</label><input id="editPassword" type="password" autocomplete="new-password"></div>
+        <div><label>Role</label><select id="editRole"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+      </div>
+      <p id="editUserErr" class="err"></p>
+      <button class="btn" id="saveUserBtn" style="margin-top:10px">Save changes</button>
+      <button class="btn-ghost btn" id="cancelUserBtn" style="margin-top:10px">Cancel</button>
+    </div>
     <div id="userList" style="margin-top:12px"></div>
   </div>
 
@@ -852,7 +864,7 @@ function switchTab(name){
   document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("active",t.dataset.tab===name)});
   document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
   $("view-"+name).classList.add("active");
-  if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell")renderSell();
+  if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell"){renderSell();resetCartScroll()}
 }
 /* ---------- Dashboard password: ask for the admin password on every click ---------- */
 function adminUser(){return state.users.filter(function(u){return u.role==="admin"})[0]||null}
@@ -1021,7 +1033,7 @@ $("discountValue").addEventListener("input",function(){syncPaidDefaults();render
 $("amountPaid").addEventListener("input",function(){$("amountPaid").dataset.touched="1";if(currentPay==="Cash"&&!$("cashReceived").dataset.touched)$("cashReceived").value=$("amountPaid").value;renderCart()});
 $("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";renderCart()});
 document.querySelectorAll("#payPills .pill").forEach(function(b){b.onclick=function(){currentPay=b.dataset.pay;document.querySelectorAll("#payPills .pill").forEach(function(x){x.classList.toggle("active",x===b)});$("cashBox").style.display=currentPay==="Cash"?"block":"none";renderCart()}});
-$("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell()};
+$("clearCartBtn").onclick=function(){cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell();resetCartScroll()};
 /* ---------- Large Format pricing, shared by the calculator and Custom Job ----------
    User's exact formulas, no rates invented:
    Flex: price per banner = width (feet) x height (feet) x 160.
@@ -1161,6 +1173,7 @@ $("chargeBtn").onclick=function(){
   $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full")+" · Printing receipt automatically…";
   $("successModal").classList.add("open");
   renderAll();
+  resetCartScroll();
   /* After Charge: print the receipt automatically, then go back to Sell
      automatically (see the afterprint handler below). The print dialog is
      opened from this Charge click, a short delay only lets the success
@@ -1168,13 +1181,19 @@ $("chargeBtn").onclick=function(){
   autoReturnAfterPrint=sale.id;
   setTimeout(function(){var s=getSale(sale.id);if(s)printReceipt(s)},350);
 };
+function resetCartScroll(){var p=document.querySelector(".cart-panel");if(p)p.scrollTop=0}
 function backToSell(){
   autoReturnAfterPrint=null;
   $("successModal").classList.remove("open");$("receiptModal").classList.remove("open");
   cart=[];
   switchTab("sell");
+  resetCartScroll();
 }
 window.addEventListener("afterprint",function(){
+  /* After any print, the Current Sale panel always starts from the top,
+     so the next sale does not begin scrolled halfway down where the
+     last sale ended. */
+  resetCartScroll();
   /* Fires in Chrome when the print dialog closes, whether the receipt
      printed or the user cancelled it. Only auto-return for the automatic
      print after Charge, never for a manual reprint from Dashboard/Admin. */
@@ -1558,10 +1577,39 @@ function renderCustomers(){
   }});
 }
 $("custFilterOwed").addEventListener("change",renderCustomers);
+var editingUserId=null;
+function openEditUser(u){
+  editingUserId=u.id;
+  $("editName").value=u.name||"";$("editUsername").value=u.username||"";$("editPassword").value="";$("editRole").value=u.role||"staff";$("editUserErr").textContent="";
+  $("editUserBox").style.display="block";$("editUserBox").scrollIntoView({block:"nearest"});$("editName").focus();
+}
+function closeEditUser(){editingUserId=null;$("editUserBox").style.display="none";$("editUserErr").textContent=""}
 function renderUsers(){
-  $("userList").innerHTML='<table><tr><th>Name</th><th>Username</th><th>Role</th><th></th></tr>'+state.users.map(function(u){return '<tr><td>'+esc(u.name)+'</td><td>@'+esc(u.username)+'</td><td>'+esc(u.role)+'</td><td>'+(state.users.length>1&&u.id!==currentUser.id?'<button class="btn-danger btn btn-sm" data-u="'+u.id+'">Delete</button>':"")+'</td></tr>'}).join("")+'</table>';
+  $("userList").innerHTML='<table><tr><th>Name</th><th>Username</th><th>Role</th><th></th></tr>'+state.users.map(function(u){return '<tr><td>'+esc(u.name)+'</td><td>@'+esc(u.username)+'</td><td>'+esc(u.role)+'</td><td><button class="btn btn-sm" data-e="'+u.id+'">Edit</button> '+(state.users.length>1&&u.id!==currentUser.id?'<button class="btn-danger btn btn-sm" data-u="'+u.id+'">Delete</button>':"")+'</td></tr>'}).join("")+'</table>';
+  $("userList").querySelectorAll("[data-e]").forEach(function(b){b.onclick=function(){var u=state.users.filter(function(x){return x.id===b.dataset.e})[0];if(u)openEditUser(u)}});
   $("userList").querySelectorAll("[data-u]").forEach(function(b){b.onclick=function(){if(!confirm("Delete this user?"))return;state.users=state.users.filter(function(u){return u.id!==b.dataset.u});save();renderUsers()}});
 }
+$("cancelUserBtn").onclick=function(){closeEditUser()};
+$("saveUserBtn").onclick=function(){
+  var u=state.users.filter(function(x){return x.id===editingUserId})[0];
+  if(!u){closeEditUser();return}
+  var n=$("editName").value.trim(),un=$("editUsername").value.trim(),pw=$("editPassword").value,r=$("editRole").value;
+  if(!n||!un){$("editUserErr").textContent="Enter a name and a username.";return}
+  if(pw&&pw.length<4){$("editUserErr").textContent="New password must be at least 4 characters.";return}
+  if(state.users.some(function(x){return x.id!==u.id&&x.username.toLowerCase()===un.toLowerCase()})){$("editUserErr").textContent="That username is already taken.";return}
+  if(u.id===currentUser.id&&u.role==="admin"&&r!=="admin"){$("editUserErr").textContent="You cannot remove your own admin role.";return}
+  if(u.role==="admin"&&r!=="admin"&&state.users.filter(function(x){return x.role==="admin"}).length<=1){$("editUserErr").textContent="There must be at least one admin.";return}
+  var oldName=u.name,oldUsername=u.username;
+  u.name=n;u.username=un;u.role=r;if(pw)u.password=pw;
+  /* New name/username updates everywhere it was recorded, so sales by staff,
+     Jobs created by, job history By, and cash closings all show the new name
+     instead of splitting one person across two names. */
+  state.sales.forEach(function(s){if(s.cashier===oldUsername||s.cashierName===oldName){s.cashier=un;s.cashierName=n}});
+  state.jobs.forEach(function(j){if(j.createdBy===oldName)j.createdBy=n;(j.history||[]).forEach(function(h){if(h.by===oldName)h.by=n})});
+  state.closings.forEach(function(c){if(c.by===oldName)c.by=n});
+  if(currentUser&&currentUser.id===u.id){$("headerUser").textContent=n;$("headerRole").textContent=r==="admin"?"ADMIN":"Staff"}
+  $("editUserErr").textContent="";save();closeEditUser();renderUsers();renderLoginUsers();renderAll();
+};
 $("addUserBtn").onclick=function(){
   var u=$("newUsername").value.trim(),n=$("newName").value.trim(),p=$("newPassword").value,r=$("newRole").value;
   if(!u||!n){$("userErr").textContent="Enter a username and name.";return}
