@@ -40,6 +40,8 @@ header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--
 .tab:hover{transform:translateY(-1px);color:var(--text)}
 .tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent);box-shadow:0 6px 16px rgba(232,106,23,.35)}
 .header-right{margin-left:auto;display:flex;align-items:center;gap:12px;text-align:right}
+/* Header tabs must fit on the POS machine screen: shrink the header and let the tabs wrap, so Products/Admin are never cut off at the right edge. (Products/Admin are still hidden for non-admin staff, by design in showApp.) */
+@media(max-width:1100px){header{gap:8px;padding:8px 10px}.brand-logo{height:34px;max-width:150px}.tab{padding:6px 10px;font-size:13px}.header-right{margin-left:0;flex-wrap:wrap;gap:8px}#installBtn{display:none}}
 main{max-width:1280px;margin:0 auto;padding:16px}
 .view{display:none}.view.active{display:block}
 .pill{border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:999px;padding:7px 14px;font-weight:700;transition:transform .15s}
@@ -376,7 +378,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <p id="jobErr" class="err"></p>
     <button class="btn" id="addJobBtn" style="margin-top:10px">Add job</button>
   </div>
-  <div class="card"><h3 style="margin-top:0">All jobs</h3><div id="jobsList"></div></div>
+  <div class="card"><h3 style="margin-top:0">All jobs</h3><p class="muted" style="margin-top:0">Job orders from sales appear here automatically: Large Format, Custom Job, UV Print and Borderless items from a charged sale become a job here, with the receipt number and the full description. Jobs made here with Add job are listed too.</p><div id="jobsList"></div></div>
   <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Job history — trace a job</h3>
     <p class="muted" style="margin-top:0">Tap <strong>History</strong> on any job below to see its full detail and every step with date, time and staff. Tap <strong>Print history</strong> to print that job's history for filing.</p>
     <div id="jobDetail"></div>
@@ -711,6 +713,8 @@ function load(){
       if(!j.createdBy)j.createdBy="";
       ensureJobHistory(j);
     });
+    /* Backfill: job orders from sales already in the state appear in Jobs too, so past job sales are not lost. */
+    ensureJobsFromSales();
     /* Add any new seeded products (e.g. Lanyards, UV Pen/Diary/Flask, Pressing of Borderless)
        to POS machines that were set up before they existed. Never touch sales/users. */
     seedProducts().forEach(function(sp){if(!state.products.some(function(x){return x.name===sp.name})){state.products.push(sp)}});
@@ -929,7 +933,8 @@ function upsertCustomer(name,phone){
 function customerBalance(name){
   var bal=0;
   state.sales.forEach(function(s){if(!s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase())bal+=Number(s.balance||0)});
-  state.jobs.forEach(function(j){if(j.customerName&&j.customerName.toLowerCase()===name.toLowerCase())bal+=Number(j.balance||0)});
+  /* Sale-linked jobs (source "sale") mirror a sale, so their balance is already in that sale's balance. Counting it again would double the amount owed. */
+  state.jobs.forEach(function(j){if(j.source==="sale")return;if(j.customerName&&j.customerName.toLowerCase()===name.toLowerCase())bal+=Number(j.balance||0)});
   return bal;
 }
 /* ---------- sell ---------- */
@@ -1148,6 +1153,67 @@ $("addLfBtn").onclick=function(){
 };
 updateCustomLabels();
 renderLfSummary();
+
+/* ---------- jobs from sales: every received job order shows in Jobs ----------
+   A "job item" is production work: any Large Format / Custom Job item
+   (flatAmount, typed price), or any item in Large Format, UV Print or
+   Borderless. Standard DI paper/card items sold at the till are NOT auto-jobs:
+   they are instant sales, and making a job for every A4 Paper sale would flood
+   the Jobs list. When a sale is charged, one Job is created for each job item
+   in that sale, with the receipt number and full description, so Jobs is never
+   "No jobs yet" after job sales. Backfill (ensureJobsFromSales) does the same
+   for sales already in the state, so past job sales appear too.
+   Money lives in the SALE only: a sale-linked job mirrors the sale's paid /
+   balance for traceability, and is excluded from Dashboard "Still owed" and
+   customer balances (see customerBalance / renderDashboard), so nothing is
+   counted twice. A payment recorded on a sale-linked job is applied to the
+   linked sale as well, and is not also pushed as a separate payment. */
+function isJobItem(it){
+  if(!it)return false;
+  if(it.flatAmount)return true;
+  var c=totalCategory(it);
+  return c==="Large Format"||c==="UV Print"||c==="Borderless";
+}
+function jobSizeFromName(name){
+  var m=String(name||"").match(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(in|ft)/i);
+  if(!m)return {size:"",raw:""};
+  return {size:m[1]+"x"+m[2]+" "+m[3].toLowerCase(),raw:m[0]};
+}
+function createJobsFromSale(sale){
+  if(!sale||!sale.items||sale.voided)return [];
+  var created=[];
+  var jobItems=sale.items.map(function(it,idx){return {it:it,idx:idx}}).filter(function(x){return isJobItem(x.it)});
+  if(!jobItems.length)return created;
+  var sub=(sale.items||[]).reduce(function(a,it){return a+lineTotal(it)},0);
+  var disc=Math.min(Math.max(Number(sale.discount||0),0),sub);
+  var jobTotal=jobItems.reduce(function(a,x){var raw=lineTotal(x.it);var ld=sub>0?Math.round(raw*disc/sub):0;return a+Math.max(0,raw-ld)},0);
+  jobItems.forEach(function(x){
+    var it=x.it;
+    if(state.jobs.some(function(j){return j.saleId===sale.id&&Number(j.saleItemIndex)===x.idx}))return;
+    var raw=lineTotal(it);
+    var ld=sub>0?Math.round(raw*disc/sub):0;
+    var total=Math.max(0,raw-ld);
+    var paid=jobTotal>0?Math.round(Number(sale.paid||0)*total/jobTotal):0;
+    if(paid>total)paid=total;
+    var sz=jobSizeFromName(it.name);
+    var size=sz.size;
+    var desc=String(it.name||"Job");
+    if(sz.raw)desc=desc.replace(sz.raw,"").replace(/\s+/g," ").trim();
+    if(!desc)desc=String(it.name||"Job");
+    state.jobSeq=(state.jobSeq||0)+1;
+    var job={id:uid(),jobNo:"JOB-"+String(state.jobSeq).padStart(4,"0"),customerName:sale.customerName||"Walk-in",phone:sale.phone||"",description:desc,size:size,qty:it.qty||1,total:total,deposit:paid,depositMethod:sale.payment||"",paid:paid,balance:total-paid,status:"Pending",created:sale.date,updated:sale.date,createdBy:sale.cashierName||sale.cashier||"",history:[],saleId:sale.id,saleReceiptNo:sale.receiptNo,saleItemIndex:x.idx,source:"sale"};
+    job.history.push({at:sale.date,by:job.createdBy,action:"Created",detail:"Created automatically from sale Receipt "+(sale.receiptNo||"")+" (charged "+fmtDT(sale.date)+"). "+(size?("Size "+size+". "):"")+"Quantity "+(it.qty||1)+". Total "+fmt(total)+", deposit "+fmt(paid)+" ("+(sale.payment||"")+")"+", paid "+fmt(paid)+", balance "+fmt(total-paid)+". Status: Pending."});
+    state.jobs.push(job);created.push(job);
+  });
+  return created;
+}
+function ensureJobsFromSales(){
+  var made=0;
+  (state.sales||[]).slice().sort(function(a,b){return new Date(a.date)-new Date(b.date)}).forEach(function(s){
+    made+=createJobsFromSale(s).length;
+  });
+  return made;
+}
 $("chargeBtn").onclick=function(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
   if(!cart.length||calc.total<=0)return;
@@ -1164,6 +1230,8 @@ $("chargeBtn").onclick=function(){
     paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":currentPay,customerName:name||"",phone:phone||"",
     cashReceived:cashReceived,change:currentPay==="Cash"?Math.max(0,cashReceived-paid):0,voided:false};
   state.sales.push(sale);
+  /* Every job item in this sale becomes a Job in the Jobs tab, with its description and receipt number. */
+  createJobsFromSale(sale);
   cart.forEach(function(it){if(it.productId){var p=state.products.filter(function(x){return x.id===it.productId})[0];if(p&&p.stock!==null&&p.stock!==undefined)p.stock=Math.max(0,p.stock-it.qty)}});
   if(name)upsertCustomer(name,phone);
   /* Sale is saved first (localStorage + cloud queue inside save()), so the
@@ -1262,7 +1330,7 @@ function renderDashboard(){
   var list=salesOn(d);
   var grand=list.reduce(function(a,s){return a+Number(s.total||0)},0);
   var collected=list.reduce(function(a,s){return a+Number(s.paid||0)},0);
-  var owed=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return dateOf(j.created)===d}).reduce(function(a,j){return a+Number(j.balance||0)},0);
+  var owed=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return j.source!=="sale"&&dateOf(j.created)===d}).reduce(function(a,j){return a+Number(j.balance||0)},0);
   var before=list.reduce(function(a,s){return a+Number(s.subtotal||0)},0);
   var disc=list.reduce(function(a,s){return a+Number(s.discount||0)},0);
   $("dGrand").textContent=fmt(grand);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);$("dBefore").textContent=fmt(before);$("dDiscounts").textContent=fmt(disc);
@@ -1341,7 +1409,8 @@ function ensureJobHistory(j){
 }
 function jobMoneyLines(j){
   return '<div class="job-kv">'+
-  '<div><b>Job no:</b> '+esc(j.jobNo||"")+'</div><div><b>Status:</b> '+esc(j.status)+'</div>'+
+  '<div><b>Job no:</b> '+esc(j.jobNo||"")+'</div><div><b>Status:</b> '+esc(j.status)+'</div>'+(j.saleReceiptNo?'<div><b>Receipt:</b> '+esc(j.saleReceiptNo)+' (from sale)</div><div><b>Source:</b> Sale</div>':"")+
+
   '<div><b>Customer:</b> '+esc(j.customerName)+'</div><div><b>Phone:</b> '+esc(j.phone||"—")+'</div>'+
   '<div><b>Job:</b> '+esc(j.description)+'</div><div><b>Size:</b> '+esc(j.size||"—")+' &nbsp; <b>Qty:</b> '+esc(j.qty||1)+'</div>'+
   '<div><b>Created:</b> '+esc(fmtDT(j.created))+'</div><div><b>Created by:</b> '+esc(j.createdBy||"—")+'</div>'+
@@ -1396,13 +1465,14 @@ function printJobsHistoryRange(){
 }
 /* ---------- jobs ---------- */
 function renderJobs(){
+  if(ensureJobsFromSales())save();
   var box=$("jobsList");
   if(!state.jobs.length){box.innerHTML='<p class="muted">No jobs yet.</p>';return}
   box.innerHTML='<table><tr><th>Job no</th><th>Customer</th><th>Job</th><th>Created</th><th>Total</th><th>Deposit</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr>'+
   state.jobs.slice().reverse().map(function(j){
     var can=canCollectJob(j);
     ensureJobHistory(j);
-    return '<tr><td><strong>'+esc(j.jobNo||"")+'</strong><br><span class="muted">'+esc(j.createdBy||"")+'</span></td><td>'+esc(j.customerName)+'<br><span class="muted">'+esc(j.phone||"")+'</span></td><td>'+esc(j.description)+'<br><span class="muted">'+esc(j.size||"")+(j.qty&&Number(j.qty)!==1?" &times; "+j.qty:"")+'</span></td><td>'+esc(fmtDT(j.created))+'</td><td>'+fmt(j.total)+'</td><td>'+fmt(j.deposit||0)+'<br><span class="muted">'+esc(j.depositMethod||"")+'</span></td><td>'+fmt(j.paid)+'</td><td>'+fmt(j.balance)+'</td><td><span class="status st-'+j.status.replace(" ","")+'">'+esc(j.status)+'</span></td><td>'+
+    return '<tr><td><strong>'+esc(j.jobNo||"")+'</strong><br><span class="muted">'+esc(j.createdBy||"")+'</span>'+(j.saleReceiptNo?'<br><span class="muted">Receipt '+esc(j.saleReceiptNo)+' · from sale</span>':"")+'</td><td>'+esc(j.customerName)+'<br><span class="muted">'+esc(j.phone||"")+'</span></td><td>'+esc(j.description)+'<br><span class="muted">'+esc(j.size||"")+(j.qty&&Number(j.qty)!==1?" &times; "+j.qty:"")+'</span></td><td>'+esc(fmtDT(j.created))+'</td><td>'+fmt(j.total)+'</td><td>'+fmt(j.deposit||0)+'<br><span class="muted">'+esc(j.depositMethod||"")+'</span></td><td>'+fmt(j.paid)+'</td><td>'+fmt(j.balance)+'</td><td><span class="status st-'+j.status.replace(" ","")+'">'+esc(j.status)+'</span></td><td>'+
     '<button class="btn btn-sm" data-history="'+j.id+'">History</button> <button class="btn-ghost btn btn-sm" data-printhist="'+j.id+'">Print history</button><br>'+
     '<select data-status="'+j.id+'" style="width:auto"><option'+(j.status==="Pending"?" selected":"")+'>Pending</option><option'+(j.status==="In Production"?" selected":"")+'>In Production</option><option'+(j.status==="Ready"?" selected":"")+'>Ready</option><option'+(j.status==="Collected"?" selected":"")+'>Collected</option></select> '+
     '<input type="number" min="0" placeholder="Pay ₦" data-payamt="'+j.id+'" style="width:110px"> '+
@@ -1423,8 +1493,15 @@ function renderJobs(){
     if(amt<=0){alert("Enter an amount to record.");return}
     if(amt>j.balance){alert("Amount is more than the balance of "+fmt(j.balance)+".");return}
     j.paid+=amt;j.balance-=amt;
-    state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
-    addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received. Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
+    if(j.saleId){
+      /* Money lives in the sale: a payment on this job is a payment on its sale too. Do not also push a separate payment, or the cash would be counted twice. */
+      var ls=getSale(j.saleId);
+      if(ls){ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0))}
+      addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received on Receipt "+(j.saleReceiptNo||"")+". Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
+    }else{
+      state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
+      addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received. Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
+    }
     save();renderJobs();renderDashboard();
   }});
   box.querySelectorAll("[data-collect]").forEach(function(b){b.onclick=function(){
@@ -1572,7 +1649,7 @@ function renderCustomers(){
     var remaining=amt;
     var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
     targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));s.paid+=take;s.balance-=take;remaining-=take});
-    state.jobs.filter(function(j){return j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;remaining-=take});
+    state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;remaining-=take});
     state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name});
     save();renderCustomers();renderDashboard();
   }});
