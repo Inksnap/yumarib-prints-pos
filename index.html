@@ -97,7 +97,7 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .price-collected{height:42px;font-size:17px;font-weight:900;padding:8px 10px;border-width:2px}
 .price-input{width:88px;height:36px;text-align:right;padding:4px 8px;font-weight:900;font-size:15px;border-width:2px}
 .cart-panel #discountType{height:42px;font-size:15px;font-weight:800;width:110px;flex:none}
-.cart-panel #amountPaid,.cart-panel #cashReceived{height:42px;font-size:17px;font-weight:800;border-width:2px}
+.cart-panel #cashReceived{height:42px;font-size:17px;font-weight:800;border-width:2px}
 .pay-pills{display:flex;gap:6px}.pay-pills .pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:var(--accent)}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
 @media(max-width:1100px){.grid6{grid-template-columns:repeat(3,1fr)}}
@@ -187,48 +187,11 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
 .receipt .r-logo{background:transparent;border-radius:0;padding:0;display:inline-block}
 .receipt .r-logo img{max-width:200px;max-height:66px;width:200px;height:auto;display:block;filter:grayscale(1);print-color-adjust:exact;-webkit-print-color-adjust:exact}
 
-/* ---------- Customer Display (second screen) ----------
-   A SEPARATE window only: open it with ?customer=1 and drag it to the
-   customer-facing screen. It is NEVER a mode of the operator screen.
-   It shows only the current sale, never Dashboard, Jobs, Products,
-   Admin, expenses, reports, customers or sales history. The operator
-   screen stays full POS on the main screen. */
-#customerScreen{display:none}
-body.customer-mode{background:var(--bg);color:var(--text)}
-body.customer-mode #customerScreen{display:block;max-width:900px;margin:0 auto;padding:28px 20px 20px;text-align:center}
-body.customer-mode #app,body.customer-mode #setupScreen,body.customer-mode #loginScreen,body.customer-mode .modal-back{display:none!important}
-.cust-logo{height:72px;width:auto;max-width:340px;object-fit:contain;background:#000;border-radius:8px;padding:0}
-.cust-title{font-family:"Nunito Sans","Rubik",sans-serif;font-size:34px;font-weight:900;margin:14px 0 2px}
-.cust-sub{color:var(--dim);font-size:17px;font-weight:700;margin:0 0 18px}
-.cust-card{background:linear-gradient(180deg,var(--surface),var(--surface3));border:1px solid var(--border);border-radius:14px;padding:18px;text-align:left;box-shadow:var(--shadow-sm)}
-.cust-line{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border2);font-size:20px;font-weight:700}
-.cust-line .cust-qty{color:var(--dim);font-size:17px}
-.cust-line strong{font-size:21px;font-weight:900}
-.cust-tot{display:flex;justify-content:space-between;padding:8px 4px;font-size:20px;font-weight:800}
-.cust-tot.grand{font-size:30px;font-weight:900;border-top:2px solid var(--border);margin-top:8px;padding-top:14px}
-.cust-paid{margin-top:16px;padding:16px;border:2px solid var(--accent);border-radius:14px;font-size:24px;font-weight:900;color:var(--accent)}
-.cust-welcome{font-size:26px;font-weight:900;margin:40px 0 8px}
-.cust-note{color:var(--dim);font-size:16px}
-.cust-foot{margin-top:22px;color:var(--dim);font-size:14px;font-weight:700}
 </style>
 </head>
 <body>
 <div id="printArea" aria-hidden="true"></div>
-<!-- CUSTOMER DISPLAY (second screen only) -->
-<!-- This screen is shown ONLY when the page is opened as ?customer=1 in a
-     separate window, dragged to the customer-facing screen. It shows only
-     the current sale. It has no tabs, no login, no Dashboard, Jobs,
-     Products, Admin, expenses, reports or sales history. -->
-<div id="customerScreen" aria-label="Customer display">
-  <img src="logo-color.png" class="cust-logo" alt="Yumarib Prints logo">
-  <h1 class="cust-title" id="custShopName">YUMARIB PRINTS</h1>
-  <p class="cust-sub">Your order</p>
-  <div id="custBody"></div>
-  <p class="cust-foot">Customer display &middot; This screen shows your current order only.</p>
-</div>
 
-
-<!-- FIRST SETUP -->
 <div id="setupScreen" class="auth-wrap" style="display:none">
   <div class="card">
     <img src="logo-color.png" data-logo="1" class="auth-logo" alt="Yumarib Prints logo">
@@ -242,6 +205,8 @@ body.customer-mode #app,body.customer-mode #setupScreen,body.customer-mode #logi
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn-ghost btn btn-sm auth-theme" type="button">☀️ Light mode</button><button class="btn-ghost btn btn-sm auth-install" type="button">⬇ Install to desktop</button></div>
   </div>
 </div>
+
+<!-- FIRST SETUP -->
 
 <!-- LOGIN -->
 <div id="loginScreen" class="auth-wrap" style="display:none">
@@ -343,24 +308,20 @@ body.customer-mode #app,body.customer-mode #setupScreen,body.customer-mode #logi
       <label>Customer (needed for credit / pay later)</label>
       <input id="custName" placeholder="Customer name" autocomplete="off">
       <input id="custPhone" placeholder="Customer phone (for WhatsApp receipt)" autocomplete="off" style="margin-top:8px">
-      <label>Payment method</label>
-      <div class="pay-pills" id="payPills">
-        <button class="pill active" data-pay="Cash">Cash</button>
-        <button class="pill" data-pay="POS">POS</button>
-        <button class="pill" data-pay="Transfer">Transfer</button>
-      </div>
-      <label>Amount paid now (₦)</label><input id="amountPaid" type="number" min="0" step="1">
-      <div id="cashBox">
+      <label>Payments (split payment)</label>
+      <p class="muted" style="margin:0 0 4px">Split the total between Cash, POS and Transfer. Example: total ₦70,000, pay ₦10,000 Cash + ₦60,000 Transfer, or ₦10,000 Cash + ₦60,000 POS. Tap + Add another payment to add a row.</p>
+      <div id="splitPayments"></div>
+      <button class="btn-ghost btn" id="addSplitBtn" type="button" style="width:100%;margin-top:8px">+ Add another payment</button>
+      <div id="cashBox" style="display:none">
         <label>Cash received (₦)</label><input id="cashReceived" type="number" min="0" step="1">
         <div class="tot-row"><span>Change</span><strong id="cashChange">₦0</strong></div>
       </div>
+      <div class="tot-row"><span>Paid so far</span><strong id="splitPaidTotal">₦0</strong></div>
       <div class="tot-row"><span>Balance owed</span><strong id="cartBalance">₦0</strong></div>
       <p id="chargeHint" class="muted"></p>
       <button class="btn btn-orange" id="chargeBtn" style="width:100%;height:44px;font-size:16px">Charge</button>
       <button class="btn-ghost btn" id="clearCartBtn" style="width:100%;margin-top:8px">Clear sale</button>
       <button class="btn-ghost btn" id="reprintLastBtn" style="width:100%;margin-top:8px;display:none">Reprint last receipt</button>
-      <button class="btn-ghost btn" id="openCustomerBtn" type="button" style="width:100%;margin-top:8px">🖥 Open Customer Screen</button>
-      <p class="muted" style="margin:6px 0 0">For the dual-screen machine: open the Customer Screen once, drag that window to the customer screen and maximise it there. Customers then see only the current sale, never Dashboard or Admin.</p>
     </aside>
   </div>
 </section>
@@ -629,80 +590,7 @@ service cloud.firestore {
 "use strict";
 /* ---------- storage ---------- */
 var KEY="yumarib-pos-v1";
-/* ---------- Customer Display: separate second window ----------
-   The operator screen and the customer screen are TWO windows of the
-   same page, in the same Chrome. The customer window is opened with
-   ?customer=1 (button "Open Customer Screen" in Sell) and dragged to
-   the customer-facing screen. It never replaces the operator screen.
-   Live sync: the operator publishes ONLY the current sale (items,
-   subtotal, discount, total, paid, balance, customer name) to
-   localStorage key yumarib-pos-live-v1. The customer window listens
-   for storage events and polls once a second, and renders only that.
-   It never receives Dashboard, Jobs, Products, Admin, expenses,
-   reports, customers or sales history, and it never logs in.
-   NOTE: if Windows is set to Duplicate / Mirror, both screens show
-   the same thing and no software can fix that. Windows must be set
-   to Extend (see README / setup steps). */
-var LIVE_KEY="yumarib-pos-live-v1";
-var IS_CUSTOMER=/[?&]customer=1(?:&|$|#)/.test(location.search)||/#customer=1/.test(location.hash);
-var livePaidHoldUntil=0;
-function publishLiveSale(force){
-  if(IS_CUSTOMER)return;
-  try{
-    if(livePaidHoldUntil&&Date.now()<livePaidHoldUntil&&!force){
-      /* Paid / Thank-you screen is held on the customer display until
-         the next sale starts. A non-empty cart means a new sale has
-         started, so clear the hold and publish the new sale at once. */
-      if(!cart.length)return;
-      livePaidHoldUntil=0;
-    }
-    var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
-    var paid=Number($("amountPaid").value||0);
-    var data={status:cart.length?"sale":"empty",receiptNo:"",items:cart.map(function(it){return {name:it.name,qty:it.qty,price:it.price,flatAmount:!!it.flatAmount,lineTotal:lineTotal(it)}}),subtotal:calc.subtotal,discount:calc.discount,total:calc.total,paid:paid,balance:Math.max(0,calc.total-paid),payment:currentPay,customerName:($("custName").value||"").trim(),updatedAt:Date.now()};
-    localStorage.setItem(LIVE_KEY,JSON.stringify(data));
-  }catch(e){}
-}
-function publishPaidLiveSale(sale){
-  if(IS_CUSTOMER)return;
-  try{
-    livePaidHoldUntil=Date.now()+20000; /* hold Thank-you for 20s, or until the next sale starts */
-    var data={status:"paid",receiptNo:sale.receiptNo||"",items:(sale.items||[]).map(function(it){return {name:it.name,qty:it.qty,price:it.price,flatAmount:!!it.flatAmount,lineTotal:lineTotal(it)}}),subtotal:sale.subtotal,discount:sale.discount,total:sale.total,paid:sale.paid,balance:sale.balance,payment:sale.payment,customerName:sale.customerName||"",updatedAt:Date.now()};
-    localStorage.setItem(LIVE_KEY,JSON.stringify(data));
-  }catch(e){}
-}
-function openCustomerScreen(){
-  var url=location.origin+location.pathname+"?customer=1";
-  var w=window.open(url,"yumarib-customer-display","width=900,height=700");
-  if(!w)alert("Chrome blocked the new window. Allow pop-ups for this site, then tap Open Customer Screen again. Or open this link yourself in a new window and drag it to the customer screen:\n"+url);
-}
-function renderCustomer(){
-  var box=$("custBody");if(!box)return;
-  var shopName="YUMARIB PRINTS";
-  try{var raw=localStorage.getItem(KEY);if(raw){var st=JSON.parse(raw);if(st&&st.shop&&st.shop.name)shopName=st.shop.name}}catch(e){}
-  var nameEl=$("custShopName");if(nameEl)nameEl.textContent=shopName;
-  var data=null;
-  try{var live=localStorage.getItem(LIVE_KEY);if(live)data=JSON.parse(live)}catch(e){data=null}
-  if(!data||!data.items||!data.items.length){
-    if(data&&data.status==="paid"&&data.receiptNo){
-      box.innerHTML='<div class="cust-paid">✓ Thank you! Paid '+fmt(data.paid||0)+(data.balance>0?' &middot; Balance '+fmt(data.balance):'')+'</div><p class="cust-note" style="margin-top:12px">Receipt '+esc(data.receiptNo)+'</p>';
-    }else{
-      box.innerHTML='<p class="cust-welcome">Welcome to '+esc(shopName)+'</p><p class="cust-note">Your order will appear here.</p>';
-    }
-    return;
-  }
-  var rows=data.items.map(function(it){return '<div class="cust-line"><span>'+esc(it.name)+' <span class="cust-qty">&times; '+Number(it.qty||1)+'</span></span><strong>'+fmt(it.lineTotal)+'</strong></div>'}).join("");
-  var paidHtml="";
-  if(data.status==="paid"){
-    paidHtml='<div class="cust-paid">✓ Thank you! Paid '+fmt(data.paid||0)+(data.balance>0?' &middot; Balance '+fmt(data.balance):'')+'</div><p class="cust-note" style="margin-top:12px">Receipt '+esc(data.receiptNo||"")+'</p>';
-  }
-  box.innerHTML='<div class="cust-card">'+rows+
-    '<div class="cust-tot"><span>Subtotal</span><span>'+fmt(data.subtotal||0)+'</span></div>'+
-    (data.discount?'<div class="cust-tot"><span>Discount</span><span>&minus; '+fmt(data.discount||0)+'</span></div>':'')+
-    '<div class="cust-tot grand"><span>Total</span><span>'+fmt(data.total||0)+'</span></div>'+
-    (data.customerName?'<p class="cust-note" style="margin:10px 0 0">Customer: '+esc(data.customerName)+'</p>':'')+
-    '</div>'+paidHtml;
-}
-var state=null, currentUser=null, cart=[], currentCat="All", currentPay="Cash", lastSaleId=null, selectedLoginUser=null, autoReturnAfterPrint=null;
+var state=null, currentUser=null, cart=[], currentCat="All", lastSaleId=null, selectedLoginUser=null, autoReturnAfterPrint=null;
 var CATS=[{name:"DI",label:"DI — Direct Images",color:"#f07a1a"},{name:"Large Format",label:"Large Format",color:"#7b5cff"},{name:"Borderless",label:"Borderless",color:"#8a97a0"},{name:"UV Print",label:"UV Print",color:"#d97a5a"}];
 /* Sell groups: DI is split in the Sell screen, so staff find Paper and Card fast.
    Paper is A4 separate from A3. Card is separate by grams, A4 separate from A3.
@@ -816,6 +704,9 @@ function load(){
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
     state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;
+    /* Old sales have no payments array: build it from payment / paid, so
+       split-payment receipt, Dashboard and reports show them correctly. */
+    state.sales.forEach(function(s){if(!Array.isArray(s.payments)){s.payments=(Number(s.paid)>0&&s.payment&&s.payment!=="Credit")?[{method:s.payment,amount:Number(s.paid)}]:[]}});
     /* Jobs history: give every old job a job number and a history built from
        the data already stored (created date, deposit, payments, status), so
        older jobs can be traced too. New jobs get their history live. */
@@ -946,6 +837,46 @@ function calcSale(items,discountType,discountValue){
   var disc=discountType==="percent"?sub*(Number(discountValue)||0)/100:(Number(discountValue)||0);
   if(disc<0)disc=0;if(disc>sub)disc=sub;disc=Math.round(disc);
   return {subtotal:sub,discount:disc,total:sub-disc};
+}
+/* ---------- split payment helpers ----------
+   A sale can be paid in parts, each part with its own method: Cash, POS
+   or Transfer. sale.payments = [{method, amount}, ...]. Old sales have no
+   payments array, so paymentParts() falls back to sale.payment / sale.paid.
+   Dashboard and daily closing count each part under its own method, from
+   the sale only, plus state.payments for manual-job payments. Customer
+   payments and sale-linked job payments are merged into the sale's
+   payments, so they are never counted twice. */
+function paymentParts(s){
+  if(s&&Array.isArray(s.payments)&&s.payments.length)return s.payments.filter(function(p){return Number(p.amount||0)>0}).map(function(p){return {method:p.method||"Cash",amount:Number(p.amount||0)}});
+  if(s&&Number(s.paid)>0)return [{method:(s.payment&&s.payment!=="Credit")?s.payment:"Cash",amount:Number(s.paid)}];
+  return [];
+}
+function paymentSummary(s){
+  var parts=paymentParts(s);
+  if(!parts.length)return (s&&s.payment)?s.payment:"Credit";
+  return parts.map(function(p){return p.method+" "+fmt(p.amount)}).join(" + ");
+}
+function paymentMethods(s){
+  var seen={},out=[];
+  paymentParts(s).forEach(function(p){if(!seen[p.method]){seen[p.method]=1;out.push(p.method)}});
+  return out.length?out.join(" + "):((s&&s.payment)?s.payment:"Credit");
+}
+function mergeSalePayment(sale,method,amt,paidBefore){
+  if(!sale||!(amt>0))return;
+  if(!Array.isArray(sale.payments)||!sale.payments.length){
+    var prev=(paidBefore!=null)?Number(paidBefore):Math.max(0,Number(sale.paid||0)-amt);
+    sale.payments=(prev>0&&sale.payment&&sale.payment!=="Credit")?[{method:sale.payment,amount:prev}]:[];
+  }
+  var ex=sale.payments.filter(function(p){return p.method===method})[0];
+  if(ex)ex.amount+=amt;else sale.payments.push({method:method,amount:amt});
+  sale.payment=paymentMethods(sale);
+}
+function isManualJobPayment(p){
+  if(!p||p.ref==="customer")return false;
+  if(!p.ref)return true;
+  var j=(state.jobs||[]).filter(function(x){return x.id===p.ref})[0];
+  if(j&&(j.source==="sale"||j.saleId))return false;
+  return true;
 }
 function canCollectJob(job){return Number(job.balance||0)<=0}
 function closingDiff(expected,counted){return (Number(counted)||0)-(Number(expected)||0)}
@@ -1102,20 +1033,48 @@ function addToCart(p){
   renderSell();
 }
 
+function splitTotal(){return splitPayments.reduce(function(a,p){return a+Math.max(0,Math.floor(Number(p.amount)||0))},0)}
+function splitCashTotal(){return splitPayments.filter(function(p){return p.method==="Cash"}).reduce(function(a,p){return a+Math.max(0,Math.floor(Number(p.amount)||0))},0)}
+function renderSplitRows(){
+  var box=$("splitPayments");if(!box)return;
+  box.innerHTML="";
+  splitPayments.forEach(function(row,idx){
+    var div=document.createElement("div");
+    div.style.cssText="display:flex;gap:8px;align-items:center;margin-top:8px";
+    div.innerHTML='<select style="width:110px" aria-label="Payment method"><option'+(row.method==="Cash"?" selected":"")+'>Cash</option><option'+(row.method==="POS"?" selected":"")+'>POS</option><option'+(row.method==="Transfer"?" selected":"")+'>Transfer</option></select>'+
+      '<input type="number" min="0" step="1" style="flex:1" placeholder="Amount ₦" aria-label="Payment amount" value="'+(row.amount||"")+'">'+
+      (splitPayments.length>1?'<button class="btn-ghost btn btn-sm" type="button" aria-label="Remove this payment">✕</button>':"");
+    var sel=div.querySelector("select"),inp=div.querySelector("input"),rm=div.querySelector("button");
+    sel.onchange=function(){row.method=sel.value;splitTouched=true;refreshCartTotals()};
+    inp.addEventListener("input",function(){
+      row.amount=Math.max(0,Math.floor(Number(inp.value)||0));splitTouched=true;
+      if(row.method==="Cash"&&!$("cashReceived").dataset.touched)$("cashReceived").value=splitCashTotal();
+      refreshCartTotals();
+    });
+    inp.addEventListener("change",function(){row.amount=Math.max(0,Math.floor(Number(inp.value)||0));renderSplitRows();refreshCartTotals()});
+    if(rm)rm.onclick=function(){splitPayments.splice(idx,1);splitTouched=true;renderSplitRows();refreshCartTotals()};
+    box.appendChild(div);
+  });
+}
 function refreshCartTotals(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
   $("cartSubtotal").textContent=fmt(calc.subtotal);$("cartDiscount").textContent=fmt(calc.discount);$("cartTotal").textContent=fmt(calc.total);
-  var paid=Number($("amountPaid").value||0);
+  var paid=splitTotal();
   var bal=Math.max(0,calc.total-paid);
+  var paidEl=$("splitPaidTotal");if(paidEl)paidEl.textContent=fmt(paid);
   $("cartBalance").textContent=fmt(bal);
+  var cashPart=splitCashTotal();
+  var cb=$("cashBox");if(cb)cb.style.display=cashPart>0?"block":"none";
+  if(!$("cashReceived").dataset.touched)$("cashReceived").value=cashPart>0?cashPart:"";
   var cash=Number($("cashReceived").value||0);
-  $("cashChange").textContent=fmt(Math.max(0,cash-paid));
+  $("cashChange").textContent=fmt(Math.max(0,cash-cashPart));
   $("chargeBtn").disabled=cart.length===0||calc.total<=0;
   $("chargeHint").textContent=bal>0?"Part payment: "+fmt(bal)+" will stay as balance on the customer. Add the customer name above.":"";
-  publishLiveSale();
 }
+var splitPayments=[{method:"Cash",amount:0}], splitTouched=false;
 function renderCart(){
   syncPaidDefaults();
+  if(!$("splitPayments").children.length)renderSplitRows();
   /* Reprint last receipt: shown in Sell after a sale, so a failed print /
      paper-out can be reprinted without going to Dashboard. It never
      triggers the auto-return to Sell, that is only for the auto-print. */
@@ -1178,17 +1137,30 @@ function renderCart(){
   refreshCartTotals();
 }
 function syncPaidDefaults(){
+  /* Untouched single payment row defaults to the full total, so a normal
+     one-method sale works exactly as before. Once staff type an amount,
+     add a row, or change a method, the amounts stay as typed. */
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
-  if(!$("amountPaid").dataset.touched){$("amountPaid").value=calc.total;$("cashReceived").value=calc.total}
+  if(!splitTouched&&splitPayments.length===1){
+    splitPayments[0].amount=calc.total;
+    var box=$("splitPayments");
+    if(box&&box.children.length){var inp=box.querySelector("input");if(inp&&document.activeElement!==inp)inp.value=calc.total}
+  }
+  if(!$("cashReceived").dataset.touched)$("cashReceived").value=splitCashTotal()>0?splitCashTotal():"";
 }
 $("sellSearch").addEventListener("input",renderSell);
 $("discountType").addEventListener("change",function(){syncPaidDefaults();renderCart()});
 $("discountValue").addEventListener("input",function(){syncPaidDefaults();renderCart()});
-$("amountPaid").addEventListener("input",function(){$("amountPaid").dataset.touched="1";if(currentPay==="Cash"&&!$("cashReceived").dataset.touched)$("cashReceived").value=$("amountPaid").value;renderCart()});
-$("custName").addEventListener("input",publishLiveSale);$("custPhone").addEventListener("input",publishLiveSale);
-$("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";renderCart()});
-document.querySelectorAll("#payPills .pill").forEach(function(b){b.onclick=function(){currentPay=b.dataset.pay;document.querySelectorAll("#payPills .pill").forEach(function(x){x.classList.toggle("active",x===b)});$("cashBox").style.display=currentPay==="Cash"?"block":"none";renderCart()}});
-$("clearCartBtn").onclick=function(){cart=[];livePaidHoldUntil=0;delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSell();resetCartScroll();publishLiveSale(true)};
+$("cashReceived").addEventListener("input",function(){$("cashReceived").dataset.touched="1";refreshCartTotals()});
+$("addSplitBtn").onclick=function(){
+  var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
+  var remaining=Math.max(0,calc.total-splitTotal());
+  var used={};splitPayments.forEach(function(p){used[p.method]=1});
+  var method=!used["Transfer"]?"Transfer":(!used["POS"]?"POS":(!used["Cash"]?"Cash":"Transfer"));
+  splitPayments.push({method:method,amount:remaining});
+  splitTouched=true;renderSplitRows();refreshCartTotals();
+};
+$("clearCartBtn").onclick=function(){cart=[];splitPayments=[{method:"Cash",amount:0}];splitTouched=false;delete $("cashReceived").dataset.touched;$("discountValue").value=0;$("custName").value="";$("custPhone").value="";renderSplitRows();renderSell();resetCartScroll()};
 /* ---------- Large Format: simple manual entry, no automatic calculation ----------
    Like the first version: 1. Choose the type. 2. Type the size.
    3. Type the quantity. 4. Type the price yourself. Then Add to sale.
@@ -1331,18 +1303,21 @@ function ensureJobsFromSales(){
 $("chargeBtn").onclick=function(){
   var calc=calcSale(cart,$("discountType").value,Number($("discountValue").value||0));
   if(!cart.length||calc.total<=0)return;
-  var paid=Number($("amountPaid").value||0),name=$("custName").value.trim(),phone=$("custPhone").value.trim();
+  var paid=splitTotal(),name=$("custName").value.trim(),phone=$("custPhone").value.trim();
   if(paid<0||paid>calc.total){alert("Amount paid must be between ₦0 and the total.");return}
   var balance=calc.total-paid;
   if(balance>0&&!name){alert("Add the customer name above so the balance can stay on their account.");return}
-  var cashReceived=currentPay==="Cash"?Number($("cashReceived").value||0):paid;
-  if(currentPay==="Cash"&&cashReceived<paid){alert("Cash received is less than the amount paid.");return}
+  var payments=splitPayments.filter(function(p){return Math.floor(Number(p.amount)||0)>0}).map(function(p){return {method:p.method,amount:Math.floor(Number(p.amount)||0)}});
+  var cashPart=splitCashTotal();
+  var cashReceived=cashPart>0?Number($("cashReceived").value||0):0;
+  if(cashPart>0&&cashReceived<cashPart){alert("Cash received is less than the cash part of "+fmt(cashPart)+".");return}
+  var paySummary=payments.length?payments.map(function(p){return p.method}).filter(function(v,i,a){return a.indexOf(v)===i}).join(" + "):"Credit";
   state.receiptSeq=(state.receiptSeq||0)+1;
   var sale={id:uid(),receiptNo:"R"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
     items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice,flatAmount:!!it.flatAmount}}),
     subtotal:calc.subtotal,discountType:$("discountType").value,discountValue:Number($("discountValue").value||0),discount:calc.discount,total:calc.total,
-    paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":currentPay,customerName:name||"",phone:phone||"",
-    cashReceived:cashReceived,change:currentPay==="Cash"?Math.max(0,cashReceived-paid):0,voided:false};
+    paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":paySummary,payments:payments,customerName:name||"",phone:phone||"",
+    cashReceived:cashReceived,change:cashPart>0?Math.max(0,cashReceived-cashPart):0,voided:false};
   state.sales.push(sale);
   /* Every job item in this sale becomes a Job in the Jobs tab, with its description and receipt number. */
   createJobsFromSale(sale);
@@ -1351,12 +1326,12 @@ $("chargeBtn").onclick=function(){
   /* Sale is saved first (localStorage + cloud queue inside save()), so the
      sale is never lost if the print dialog is cancelled or paper runs out. */
   save();lastSaleId=sale.id;
-  cart=[];delete $("amountPaid").dataset.touched;delete $("cashReceived").dataset.touched;
-  $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("amountPaid").value="";$("cashReceived").value="";
+  cart=[];splitPayments=[{method:"Cash",amount:0}];splitTouched=false;delete $("cashReceived").dataset.touched;
+  $("discountValue").value=0;$("custName").value="";$("custPhone").value="";$("cashReceived").value="";
   $("successText").textContent="Receipt "+sale.receiptNo+" · "+fmt(sale.total)+(sale.balance>0?" · Balance "+fmt(sale.balance)+" on "+sale.customerName:" · Paid in full")+" · Printing receipt automatically…";
   $("successModal").classList.add("open");
+  renderSplitRows();
   renderAll();
-  publishPaidLiveSale(sale);
   resetCartScroll();
   /* After Charge: print the receipt automatically, then go back to Sell
      automatically (see the afterprint handler below). The print dialog is
@@ -1386,7 +1361,6 @@ window.addEventListener("afterprint",function(){
 });
 $("doneBtn").onclick=function(){backToSell()};
 $("reprintLastBtn").onclick=function(){var s=getSale(lastSaleId);if(s)printReceipt(s)};
-var _ocb=$("openCustomerBtn");if(_ocb)_ocb.onclick=openCustomerScreen;
 $("printReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)printReceipt(s)};
 $("waReceiptBtn").onclick=function(){var s=getSale(lastSaleId);if(s)sendWhatsAppReceipt(s)};
 function getSale(id){return state.sales.filter(function(s){return s.id===id})[0]}
@@ -1412,8 +1386,9 @@ function receiptHtml(s){
   '<div class="rline r-total-row"><span>Total</span><span>'+fmt(s.total)+'</span></div>'+
   '<div class="rline"><span>Paid</span><span>'+fmt(s.paid)+'</span></div>'+
   '<div class="rline"><span>Balance</span><span class="'+(s.balance>0?"r-balance":"")+'">'+fmt(s.balance)+'</span></div>'+
-  '<div class="rline"><span>Payment</span><span>'+esc(s.payment)+'</span></div>'+
-  (s.payment==="Cash"?'<div class="rline"><span>Cash received</span><span>'+fmt(s.cashReceived)+'</span></div><div class="rline"><span>Change</span><span>'+fmt(s.change)+'</span></div>':"")+
+  paymentParts(s).map(function(p){return '<div class="rline"><span>'+esc(p.method)+'</span><span>'+fmt(p.amount)+'</span></div>'}).join("")+
+  (paymentParts(s).length?'<div class="rline"><span>Payment</span><span>'+esc(paymentSummary(s))+'</span></div>':'<div class="rline"><span>Payment</span><span>'+esc(s.payment||"Credit")+'</span></div>')+
+  (paymentParts(s).some(function(p){return p.method==="Cash"})?'<div class="rline"><span>Cash received</span><span>'+fmt(s.cashReceived)+'</span></div><div class="rline"><span>Change</span><span>'+fmt(s.change)+'</span></div>':"")+
   '</div>'+
   (s.voided?'<div class="r-void">VOIDED</div>':"")+
   '<div class="r-thanks">Thank you!</div><div class="r-thanks-sub">Please come again</div></div>';
@@ -1423,7 +1398,8 @@ function receiptText(s){
   if(s.customerName)lines.push("Customer: "+s.customerName);
   s.items.forEach(function(it){lines.push(it.name+" x"+it.qty+" - "+fmt(lineTotal(it)))});
   lines.push("Subtotal: "+fmt(s.subtotal));if(s.discount)lines.push("Discount: -"+fmt(s.discount));
-  lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+s.payment,"Thank you! Please come again");
+  paymentParts(s).forEach(function(p){lines.push(p.method+": "+fmt(p.amount))});
+  lines.push("Total: "+fmt(s.total),"Paid: "+fmt(s.paid),"Balance: "+fmt(s.balance),"Payment: "+paymentSummary(s),"Thank you! Please come again");
   return lines.join("\n");
 }
 function printReceipt(s){
@@ -1465,8 +1441,8 @@ function renderDashboard(){
     '<div class="tot-row"><span>Jobs ('+jobsToday.length+' job'+(jobsToday.length===1?"":"s")+' created today)</span><strong>'+fmt(jobsTotal)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (after discount)</span><strong>'+fmt(catSum)+'</strong></div>'+
     '<p class="muted">Category amounts are after discount. Discount that day: '+fmt(disc)+' · Grand total after discount: '+fmt(grand)+'.</p>';
-  var byPay={};list.forEach(function(s){byPay[s.payment]=(byPay[s.payment]||0)+Number(s.paid||0)});
-  state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
+  var byPay={};list.forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
+  state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
   var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+Number(s.total||0)});
   $("staffTotals").innerHTML=Object.keys(byStaff).length?Object.keys(byStaff).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byStaff[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
@@ -1478,10 +1454,9 @@ function renderDashboard(){
 }
 function renderClosing(d){
   var list=salesOn(d);
-  var cash=list.filter(function(s){return s.payment==="Cash"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
-  var pos=list.filter(function(s){return s.payment==="POS"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
-  var tr=list.filter(function(s){return s.payment==="Transfer"}).reduce(function(a,s){return a+Number(s.paid||0)},0);
-  state.payments.filter(function(p){return dateOf(p.date)===d}).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)});
+  var cash=0,pos=0,tr=0;
+  list.forEach(function(s){paymentParts(s).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)})});
+  state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)});
   var cashExp=state.expenses.filter(function(e){return dateOf(e.date)===d}).reduce(function(a,e){return a+Number(e.amount||0)},0);
   var expected=cash-cashExp;
   $("closingCash").textContent=fmt(cash);$("closingPos").textContent=fmt(pos);$("closingTransfer").textContent=fmt(tr);$("closingExpected").textContent=fmt(expected);
@@ -1612,7 +1587,7 @@ function renderJobs(){
     if(j.saleId){
       /* Money lives in the sale: a payment on this job is a payment on its sale too. Do not also push a separate payment, or the cash would be counted twice. */
       var ls=getSale(j.saleId);
-      if(ls){ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0))}
+      if(ls){var _pb=Number(ls.paid||0);ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0));mergeSalePayment(ls,method,amt,_pb)}
       addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received on Receipt "+(j.saleReceiptNo||"")+". Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
     }else{
       state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName});
@@ -1681,7 +1656,7 @@ function renderAdmin(){renderAdminSales();renderExpenses();renderCustomers();ren
   $("netTotal").textContent=fmt(net);
 }
 function saleRow(s){
-  return '<tr><td>'+esc(s.receiptNo)+(s.voided?' <span class="stock-warn">VOIDED</span>':"")+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td>'+esc(s.payment)+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> '+(s.voided?"":'<button class="btn-danger btn btn-sm" data-v="'+s.id+'">Void</button>')+'</td></tr>';
+  return '<tr><td>'+esc(s.receiptNo)+(s.voided?' <span class="stock-warn">VOIDED</span>':"")+'</td><td>'+esc(new Date(s.date).toLocaleTimeString())+'</td><td>'+esc(s.customerName||"—")+'</td><td>'+fmt(s.total)+'</td><td>'+fmt(s.paid)+'</td><td>'+fmt(s.balance)+'</td><td>'+esc(paymentSummary(s))+'</td><td><button class="btn-ghost btn btn-sm" data-r="'+s.id+'">Reprint</button> '+(s.voided?"":'<button class="btn-danger btn btn-sm" data-v="'+s.id+'">Void</button>')+'</td></tr>';
 }
 function bindSaleRows(box){
   box.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){var s=getSale(b.dataset.r);if(s)showReceipt(s)}});
@@ -1730,7 +1705,7 @@ $("repRun").onclick=renderReport;
 $("exportCsvBtn").onclick=function(){
   var r=renderReport();
   var rows=[["Receipt","Date","Cashier","Customer","Item","Qty","Unit price","Line total","Total","Paid","Balance","Payment"]];
-  r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,lineTotal(it),s.total,s.paid,s.balance,s.payment])})});
+   r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,lineTotal(it),s.total,s.paid,s.balance,paymentSummary(s)])})});
   var csv=rows.map(function(row){return row.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="yumarib-report-"+r.from+"-to-"+r.to+".csv";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 };
@@ -1764,7 +1739,7 @@ function renderCustomers(){
     var bal=customerBalance(name);if(amt>bal){alert("Amount is more than the balance of "+fmt(bal)+".");return}
     var remaining=amt;
     var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
-    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));s.paid+=take;s.balance-=take;remaining-=take});
+    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));var _pb=Number(s.paid||0);s.paid+=take;s.balance-=take;mergeSalePayment(s,method,take,_pb);remaining-=take});
     state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;remaining-=take});
     state.payments.push({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name});
     save();renderCustomers();renderDashboard();
@@ -1884,19 +1859,10 @@ updateLogos(document.documentElement.getAttribute("data-theme")||"dark");
 
 /* ---------- init ---------- */
 function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin()}
-if(IS_CUSTOMER){
-  /* Customer Display window: show ONLY the current sale. No login,
-     no setup, no cloud sync, no operator screens, ever. */
-  document.body.classList.add("customer-mode");
-  renderCustomer();
-  window.addEventListener("storage",function(e){if(e.key===LIVE_KEY)renderCustomer()});
-  setInterval(renderCustomer,1000);
-}else{
-  load();
-  if(!state.users.length)showSetup();else showLogin();
-  initCloud();
-  syncPaidDefaults();
-}
+load();
+if(!state.users.length)showSetup();else showLogin();
+initCloud();
+syncPaidDefaults();
 </script>
 </body>
 </html>
