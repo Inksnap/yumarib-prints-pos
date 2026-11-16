@@ -325,6 +325,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <h2 style="margin:0">Dashboard</h2>
     <input id="dashDate" type="date" style="width:auto">
+    <button class="btn" id="printTotalsBtn" type="button">Print / Save totals</button>
   </div>
   <div class="grid6" style="margin-top:12px">
     <div class="card stat"><div class="label">Total collected</div><div class="value" id="dGrand">₦0</div></div>
@@ -504,7 +505,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v41</strong> — if this still says v38 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v42</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -1710,16 +1711,13 @@ function renderDashboard(){
   /* Totals by category = MONEY COLLECTED ONLY: only DI, Large Format, Borderless, UV Print, even ₦0.
      Paper/Card split groups and Lanyards count back into DI via totalCategory().
      Rows add up to the money collected. Nothing else is added here.
-     Jobs are shown on their own row, they have no product category. */
+     No other row is shown here. */
   var catCol=catTotalsCollected(list);var byCat=catCol.byCat;
   var catSum=catCol.catSum;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
-  var jobsToday=state.jobs.filter(function(j){return dateOf(j.created)===d});
-  var jobsCollected=jobsToday.reduce(function(a,j){return a+Math.max(0,Number(j.paid||0))},0);
   $("catTotals").innerHTML=catRows+
-    '<div class="tot-row"><span>Jobs collected ('+jobsToday.length+' job'+(jobsToday.length===1?"":"s")+' created today, paid so far)</span><strong>'+fmt(jobsCollected)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSum)+'</strong></div>'+
     '<div class="tot-row"><span>Balance still owed</span><strong>'+fmt(catCol.balance)+'</strong></div>'+
-    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid. Jobs collected is paid so far on jobs created today; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
+    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid.</p>';
   var byPay={};list.forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
   state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
@@ -1745,6 +1743,46 @@ function renderClosing(d){
   $("closingSaved").textContent=saved?("Saved "+new Date(saved.savedAt).toLocaleString()+" by "+saved.by+". Counted "+fmt(saved.countedCash)+", difference "+fmt(saved.difference)+"."):"";
 }
 $("dashDate").addEventListener("change",renderDashboard);
+/* ---------- print / save totals by category + money by payment ----------
+   Sheet is money collected only: the four categories, Categories total,
+   Balance still owed, then Money by payment (Cash, POS, Transfer).
+   It uses the same print area as receipts / job history, so the browser
+   Print dialog can print it or Save as PDF. */
+function moneyByPaymentFor(list,from,to){
+  var byPay={};
+  (list||[]).forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
+  state.payments.filter(function(p){var dd=dateOf(p.date);return isManualJobPayment(p)&&dd>=from&&dd<=to}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
+  return byPay;
+}
+function totalsSheetHtml(dateLabel,list,catCol,from,to){
+  var byCat=catCol.byCat;
+  var catRows=CATS.map(function(g){return '<tr><td>'+esc(g.label)+' (collected)</td><td>'+fmt(byCat[g.name]||0)+'</td></tr>'}).join("");
+  var byPay=moneyByPaymentFor(list,from,to);
+  var methods=["Cash","POS","Transfer"].concat(Object.keys(byPay).filter(function(m){return ["Cash","POS","Transfer"].indexOf(m)<0}).sort());
+  var payRows=methods.map(function(m){return '<tr><td>'+esc(m)+'</td><td>'+fmt(byPay[m]||0)+'</td></tr>'}).join("");
+  var payTotal=methods.reduce(function(a,m){return a+(byPay[m]||0)},0);
+  return '<div class="job-history"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Totals by category</h3>'+
+  '<p style="text-align:center">'+esc(dateLabel)+' · Printed '+esc(fmtDT(new Date().toISOString()))+' by '+esc(currentUser?currentUser.name:"")+'</p>'+
+  '<h4>Totals by category (money collected)</h4><table><tr><th>Category</th><th>Money collected</th></tr>'+catRows+
+  '<tr><td><strong>Categories total (money collected)</strong></td><td><strong>'+fmt(catCol.catSum)+'</strong></td></tr>'+
+  '<tr><td>Balance still owed</td><td>'+fmt(catCol.balance)+'</td></tr></table>'+
+  '<h4 style="margin-top:10px">Money by payment</h4><table><tr><th>Payment</th><th>Money collected</th></tr>'+payRows+
+  '<tr><td><strong>Money by payment total</strong></td><td><strong>'+fmt(payTotal)+'</strong></td></tr></table>'+
+  '<p style="text-align:center;margin-top:10px">Category amounts are money collected only. Money by payment also includes payments recorded on jobs separately.</p></div>';
+}
+function printDashboardTotals(){
+  renderDashboard();
+  var d=$("dashDate").value||todayStr();
+  var list=salesOn(d);
+  $("printArea").innerHTML=totalsSheetHtml(d,list,catTotalsCollected(list),d,d);
+  window.print();
+}
+function printReportTotals(){
+  var r=renderReport();
+  $("printArea").innerHTML=totalsSheetHtml(r.from+" to "+r.to,r.list,catTotalsCollected(r.list),r.from,r.to);
+  window.print();
+}
+$("printTotalsBtn").onclick=function(){printDashboardTotals()};
 $("countedCash").addEventListener("input",function(){renderClosing($("dashDate").value||todayStr())});
 $("saveClosingBtn").onclick=function(){
   var d=$("dashDate").value||todayStr();
@@ -1969,13 +2007,10 @@ function renderReport(){
   $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Total collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
   var catColR=catTotalsCollected(list);var byCatR=catColR.byCat;
   var catSumR=catColR.catSum;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
-  var jobsR=state.jobs.filter(function(j){return dateOf(j.created)>=from&&dateOf(j.created)<=to});
-  var jobsCollectedR=jobsR.reduce(function(a,j){return a+Math.max(0,Number(j.paid||0))},0);
   $("repCat").innerHTML='<h4>Totals by category (money collected — DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
-    '<div class="tot-row"><span>Jobs collected ('+jobsR.length+' in range, paid so far)</span><strong>'+fmt(jobsCollectedR)+'</strong></div>'+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSumR)+'</strong></div>'+
     '<div class="tot-row"><span>Balance still owed</span><strong>'+fmt(catColR.balance)+'</strong></div>'+
-    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid. Jobs collected is paid so far on jobs in range; jobs made from a sale are already counted in the sales categories above, so do not add Jobs to the Categories total.</p>';
+    '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid.</p>';
   var byProd={};list.forEach(function(s){s.items.forEach(function(it){byProd[it.name]=byProd[it.name]||{qty:0,rev:0};byProd[it.name].qty+=it.qty;byProd[it.name].rev+=lineTotal(it)})});
   var top=Object.keys(byProd).map(function(k){return {name:k,qty:byProd[k].qty,rev:byProd[k].rev}}).sort(function(a,b){return b.rev-a.rev});
   $("repTop").innerHTML=top.length?'<h4>Top products</h4><table><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>'+top.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.qty+'</td><td>'+fmt(t.rev)+'</td></tr>'}).join("")+'</table>':'<p class="muted">No sales in this range.</p>';
@@ -1989,11 +2024,7 @@ $("exportCsvBtn").onclick=function(){
   var csv=rows.map(function(row){return row.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="yumarib-report-"+r.from+"-to-"+r.to+".csv";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 };
-$("printReportBtn").onclick=function(){
-  var r=renderReport();
-  $("printArea").innerHTML='<div class="receipt" style="width:100%;max-width:700px"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Report</h3><p>'+esc(r.from)+' to '+esc(r.to)+'</p><p>Sales: '+r.list.length+' · Grand total: '+fmt(r.total)+'</p><p>Use your browser Print dialog and choose Save as PDF.</p></div>';
-  window.print();
-};
+$("printReportBtn").onclick=function(){printReportTotals()};
 function renderPriceChecker(){
   var q=($("priceSearch").value||"").toLowerCase();
   var box=$("priceResult");
