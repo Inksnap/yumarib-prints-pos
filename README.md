@@ -135,3 +135,5 @@ registry and each machine remembers device ids it has seen, and sync reads each
 `saveCloud()` reads the shared doc first so registering a machine never wipes
 a newer shared copy. Status now shows Auth state (signed in anonymously, or
 NOT signed in) and the Firestore error code.
+
+**2026-11-16 fix (auth/api-key-not-valid):** the embedded Firebase config once had its apiKey shown as a masked placeholder, and the Admin config box could save that masked value back as the real key, so Firebase Auth failed. Fixed: the built-in config is restored, the config box now shows the key masked on a separate line only and leaves apiKey blank in the editable box (blank = keep the built-in key), any stored override with a masked/invalid key is ignored and cleared on load, and Admin > Shop has a Reset cloud config button. Reloading the POS alone fixes a machine with the bad override.

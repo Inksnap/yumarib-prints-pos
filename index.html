@@ -515,9 +515,12 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <input id="machineNameInput" placeholder="e.g. Front Desk" style="width:100%">
       <p class="muted" id="syncCounts">Not synced yet. When this machine is online, its sales are merged with the other machines, so Dashboard totals add up across all machines.</p>
       <label>Firebase config (built in, override here only if the Firebase project changes)</label>
-      <textarea id="firebaseConfigInput" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}' style="width:100%"></textarea>
+      <p class="muted" id="firebaseConfigMasked">Built-in key: —</p>
+      <textarea id="firebaseConfigInput" rows="4" placeholder='{"apiKey":"","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."} — leave apiKey blank to keep the built-in key' style="width:100%"></textarea>
+      <p class="muted">The key above is shown masked on the line above, never in this box. Leave apiKey blank here to keep the built-in key. Only type a full new key here if the Firebase project ever changes.</p>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn" id="saveFirebaseConfigBtn">Save cloud config</button>
+        <button class="btn-ghost btn" id="resetFirebaseConfigBtn">Reset cloud config</button>
         <button class="btn-ghost btn" id="syncNowBtn">Sync now</button>
         <button class="btn-ghost btn" id="exportBackupBtn">Download full backup (JSON)</button>
         <button class="btn-ghost btn" id="importBackupBtn">Restore from backup file</button>
@@ -872,7 +875,7 @@ var CLOUD_DOC=SHARED_DOC;
 var DEVICE_DOC="device-"+DEVICE_ID;
 /* Built-in Firebase config (project yumarib-prints-pos, web app yumarib-pos).
    apiKey is a public web identifier, not a secret password. */
-var DEFAULT_FIREBASE_CONFIG={apiKey:"<redacted>",authDomain:"yumarib-prints-pos.firebaseapp.com",projectId:"yumarib-prints-pos",storageBucket:"yumarib-prints-pos.firebasestorage.app",messagingSenderId:"91644869311",appId:"1:91644869311:web:6f86e8f3009b4b1184a40a"};
+var DEFAULT_FIREBASE_CONFIG={apiKey:"AIzaSyASGWrKcvr8yShSHz8TrUoOwoi4L9fHLls",authDomain:"yumarib-prints-pos.firebaseapp.com",projectId:"yumarib-prints-pos",storageBucket:"yumarib-prints-pos.firebasestorage.app",messagingSenderId:"91644869311",appId:"1:91644869311:web:6f86e8f3009b4b1184a40a"};
 var cloudDb=null,cloudAuth=null,cloudReady=false,cloudTimer=null,cloudBusy=false,cloudSyncBusy=false,cloudApplied=false;
 var cloudAuthUid="",cloudAuthError="";
 var KNOWN_DEVICES_KEY="yumarib-known-devices";
@@ -882,7 +885,9 @@ function knownDeviceIds(){var ids=getKnownDeviceIds();if(ids.indexOf(DEVICE_ID)<
 function cloudAuthLine(){return cloudAuthUid?("Auth: signed in anonymously ("+cloudAuthUid.slice(0,8)+"...)"):("Auth: NOT signed in"+(cloudAuthError?(" — "+cloudAuthError):""))}
 function parseCloudPayload(d){if(!d||!d.data)return null;try{return JSON.parse(d.data)}catch(e){return null}}
 var lastSyncCounts={mine:0,other:0,total:0};
-function getFirebaseConfig(){try{var raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(raw){var c=JSON.parse(raw);if(c&&c.apiKey&&c.projectId&&c.appId)return c}}catch(e){}return DEFAULT_FIREBASE_CONFIG}
+function isValidFirebaseConfig(c){return !!(c&&c.apiKey&&c.apiKey.indexOf("AIza")==0&&c.apiKey.length>=20&&c.apiKey.indexOf("redacted")==-1&&c.apiKey.indexOf("\u2026")==-1&&c.projectId&&c.appId)}
+function maskedApiKey(k){return (typeof k==="string"&&k.length>10)?(k.slice(0,6)+"\u2026"+k.slice(-4)):("not set")}
+function getFirebaseConfig(){try{var raw=localStorage.getItem(FIREBASE_CONFIG_KEY);if(raw){var c=JSON.parse(raw);if(isValidFirebaseConfig(c))return c;/* A stored override holding a masked key or any invalid key must never be used: drop it and fall back to the built-in config. */try{localStorage.removeItem(FIREBASE_CONFIG_KEY)}catch(e2){}}}catch(e){}return isValidFirebaseConfig(DEFAULT_FIREBASE_CONFIG)?DEFAULT_FIREBASE_CONFIG:null}
 function cloudSetStatus(s,d){cloudStatusText=s;var el=$("cloudStatus");if(el)el.textContent=s;var el2=$("cloudStatusDetail");if(el2&&d)el2.textContent=d}
 var cloudStatusText="Not set up yet";
 function renderMachineInfo(){
@@ -2001,15 +2006,19 @@ $("saveShopBtn").onclick=function(){
 (function(){
   var cfgBtn=$("saveFirebaseConfigBtn");if(!cfgBtn)return;
   var cfgEl=$("firebaseConfigInput");
-  try{var ex=getFirebaseConfig();if(ex)cfgEl.value=JSON.stringify(ex)}catch(e){}
+  try{var ex=getFirebaseConfig();if(ex){var disp={apiKey:"",authDomain:ex.authDomain,projectId:ex.projectId,storageBucket:ex.storageBucket,messagingSenderId:ex.messagingSenderId,appId:ex.appId};cfgEl.value=JSON.stringify(disp);var mk=$("firebaseConfigMasked");if(mk)mk.textContent="Built-in key: "+maskedApiKey(ex.apiKey)+" (masked, shown here only — never saved from this box)";}}catch(e){}
   cloudSetStatus(getFirebaseConfig()?"Saved — connecting...":"Not set up yet");
   cfgBtn.onclick=function(){
-    try{var c=JSON.parse(cfgEl.value.trim());if(!c.apiKey||!c.projectId||!c.appId)throw new Error("missing fields");
+    try{var c=JSON.parse(cfgEl.value.trim());
+      if(!c.apiKey){/* Blank apiKey in the box means "keep the built-in key": never save a blank/redacted key. */try{localStorage.removeItem(FIREBASE_CONFIG_KEY)}catch(e){}$("cloudSaved").textContent="Keeping the built-in key. Syncing now...";cloudReady=false;cloudApplied=false;initCloud();return}
+      if(c.apiKey.indexOf("redacted")>=0||c.apiKey.indexOf("\u2026")>=0||c.apiKey.indexOf("AIza")!==0){$("cloudSaved").textContent="That key is masked or not a real Firebase key, so it was NOT saved. Leave apiKey blank to keep the built-in key.";return}
+      if(!c.projectId||!c.appId)throw new Error("missing fields");
       localStorage.setItem(FIREBASE_CONFIG_KEY,JSON.stringify(c));
       $("cloudSaved").textContent="Cloud config saved in this browser. Syncing now...";
       cloudReady=false;cloudApplied=false;initCloud();
     }catch(e){$("cloudSaved").textContent="That is not a valid Firebase config. Paste the whole JSON object from Firebase."}
   };
+  var resetBtn=$("resetFirebaseConfigBtn");if(resetBtn)resetBtn.onclick=function(){try{localStorage.removeItem(FIREBASE_CONFIG_KEY)}catch(e){}var ex2=getFirebaseConfig();if(ex2){var d2={apiKey:"",authDomain:ex2.authDomain,projectId:ex2.projectId,storageBucket:ex2.storageBucket,messagingSenderId:ex2.messagingSenderId,appId:ex2.appId};cfgEl.value=JSON.stringify(d2);var mk2=$("firebaseConfigMasked");if(mk2)mk2.textContent="Built-in key: "+maskedApiKey(ex2.apiKey)+" (masked, shown here only — never saved from this box)";}$("cloudSaved").textContent="Cloud config reset to the built-in key. Syncing now...";cloudReady=false;cloudApplied=false;initCloud()};
   $("syncNowBtn").onclick=function(){$("cloudSaved").textContent="Syncing all machines...";initCloud().then(function(){return syncCloud()}).then(function(ok){$("cloudSaved").textContent=ok?"Synced. Dashboard now shows sales from all machines.":"Sync failed, see status above.";renderMachineInfo()})};
   var mn=$("machineNameInput");if(mn){mn.value=getDeviceName();mn.addEventListener("change",function(){setDeviceName(mn.value.trim());renderMachineInfo();queueCloudSync()})}
   renderMachineInfo();
