@@ -406,7 +406,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
 <!-- WHO OWES US -->
 <section id="view-owing" class="view">
   <h2 style="margin:0 0 4px">Who owes us</h2>
-  <p class="muted" style="margin-top:0">Always here, for every signed-in user. Pick a customer who owes money, enter what they paid, choose Cash, POS or Transfer, and save. The balance goes down, Total collected goes up on the day it is paid, and the sale or job is updated. No new sale is created.</p>
+  <p class="muted" style="margin-top:0">Always here, for every signed-in user. Pick a customer who owes money, or type a new name that has not been recorded before, enter what they paid, choose Cash, POS or Transfer, and save. The balance goes down, Total collected goes up on the day it is paid, and the sale or job is updated. No new sale is created.</p>
   <div class="grid6" style="margin-bottom:12px">
     <div class="card stat"><div class="label">Total still owed</div><div class="value" id="owTotal">₦0</div></div>
     <div class="card stat"><div class="label">People owing</div><div class="value" id="owPeople">0</div></div>
@@ -414,16 +414,32 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
   <div class="card" style="margin-bottom:16px">
     <h3 style="margin:0 0 4px">Record a payment</h3>
     <div class="form-row">
-      <div><label>Customer who owes us</label><select id="owCust"><option value="">Choose a customer…</option></select></div>
+      <div><label>Customer</label><input id="owCust" list="owCustList" autocomplete="off" placeholder="Type a name, or pick one who owes us…"><datalist id="owCustList"></datalist></div>
+      <div><label>Phone (optional, for a new customer)</label><input id="owPhone" autocomplete="off" placeholder="e.g. 080..."></div>
       <div><label>Balance</label><input id="owBalText" readonly placeholder="—"></div>
       <div><label>Amount paid (₦)</label><input id="owAmt" type="number" min="0" step="1" placeholder="e.g. 10000"></div>
       <div><label>Payment method</label><select id="owMethod"><option>Cash</option><option>POS</option><option>Transfer</option></select></div>
       <div><label>Date paid</label><input id="owDate" type="date"></div>
       <div><label>Note (optional)</label><input id="owNote" autocomplete="off" placeholder="e.g. part payment"></div>
     </div>
+    <p class="muted">Type a new name to save them as a customer. If they do not owe anything yet, use Add amount owed below first, then record their payment here.</p>
     <p id="owErr" class="err"></p>
     <p id="owOk" class="ok"></p>
     <button class="btn" id="owRecordBtn" style="margin-top:10px">Record payment</button>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">Add amount owed</h3>
+    <p class="muted">For a new customer, or a customer who was not recorded before: type their name and what they owe. This creates a job for them, so they appear in Who owes us and in Jobs, and you can record payments against it.</p>
+    <div class="form-row">
+      <div><label>Customer name</label><input id="owNewName" list="owCustList" autocomplete="off" placeholder="Type a new name…"></div>
+      <div><label>Phone (optional)</label><input id="owNewPhone" autocomplete="off" placeholder="e.g. 080..."></div>
+      <div><label>Amount owed (₦)</label><input id="owOwedAmt" type="number" min="0" step="1" placeholder="e.g. 50000"></div>
+      <div><label>What for? (optional)</label><input id="owOwedDesc" autocomplete="off" placeholder="e.g. Banner printing"></div>
+      <div><label>Date owed</label><input id="owOwedDate" type="date"></div>
+    </div>
+    <p id="owOwedErr" class="err"></p>
+    <p id="owOwedOk" class="ok"></p>
+    <button class="btn" id="owAddOwedBtn" style="margin-top:10px">Add amount owed</button>
   </div>
   <div class="card"><h3 style="margin-top:0">Everyone who owes us</h3>
     <input id="owSearch" placeholder="Search by customer name..." autocomplete="off" style="margin-bottom:10px">
@@ -552,7 +568,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v43</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v45</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -1393,6 +1409,26 @@ function recordDebtPayment(name,amt,method,dateStr,note){
   save();
   return {ok:true,applied:applied,balance:customerBalance(name)};
 }
+/* ---------- add amount owed for a new / unrecorded customer ----------
+   Creates a manual job for the amount owed (total = amount, paid = 0,
+   balance = amount), and saves the person as a customer with
+   upsertCustomer(), so they appear in Who owes us, in Jobs, and in
+   Admin > Customers, and sync across machines like any other job /
+   customer. No sale is created. Payments are then recorded against
+   this job with the shared recordDebtPayment() above. */
+function recordAmountOwed(name,amt,desc,dateStr,phone){
+  name=(name||"").trim();amt=Math.round(Number(amt)||0);
+  if(!name)return {ok:false,error:"Type the customer name."};
+  if(!(amt>0))return {ok:false,error:"Enter an amount owed above \u20a60."};
+  upsertCustomer(name,phone||"");
+  state.jobSeq=(state.jobSeq||0)+1;
+  var created=(dateStr||"")?dateStr+"T12:00:00":new Date().toISOString();
+  var job={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,jobNo:"JOB-"+DEVICE_ID+"-"+String(state.jobSeq).padStart(4,"0"),customerName:name,phone:phone||"",description:(desc||"").trim()||"Amount owed",size:"",qty:1,total:amt,deposit:0,depositMethod:"",paid:0,balance:amt,status:"Pending",created:created,updated:created,createdBy:currentUser?currentUser.name:"",history:[]};
+  job.history.push({at:created,by:job.createdBy,action:"Created",detail:"Amount owed recorded. Total "+fmt(amt)+", paid "+fmt(0)+", balance "+fmt(amt)+". Status: Pending."});
+  state.jobs.push(job);
+  save();
+  return {ok:true,jobNo:job.jobNo,balance:customerBalance(name)};
+}
 function recordSingleJobPayment(job,amt,method,dateStr,note){
   if(!job)return {ok:false,error:"Job not found."};
   amt=Math.round(Number(amt)||0);method=method||"Cash";
@@ -2126,11 +2162,16 @@ function renderOwing(){
   var total=all.reduce(function(a,x){return a+Number(x.balance||0)},0);
   $("owTotal").textContent=fmt(total);$("owPeople").textContent=String(all.length);
   if(!$("owDate").value)$("owDate").value=todayStr();
-  var sel=$("owCust");var cur=sel.value;
-  sel.innerHTML='<option value="">Choose a customer…</option>'+all.map(function(d){return '<option value="'+esc(d.name)+'">'+esc(d.name)+' — '+fmt(d.balance)+' owed</option>'}).join("");
-  if(cur&&all.some(function(d){return d.name===cur}))sel.value=cur;
-  var selD=all.filter(function(d){return d.name===sel.value})[0];
-  $("owBalText").value=selD?("Balance "+fmt(selD.balance)):"";
+  /* Customer field is a free-text input with a datalist, not a dropdown
+     of debtors only, so a new name that has not been recorded before can
+     be typed in. Typing is never wiped by a re-render. */
+  var sel=$("owCust");var curName=(sel.value||"").trim();
+  var knownNames={};all.forEach(function(d){knownNames[d.name.toLowerCase()]=d.name});
+  (state.customers||[]).forEach(function(c){if(c&&c.name)knownNames[c.name.toLowerCase()]=c.name});
+  $("owCustList").innerHTML=Object.keys(knownNames).map(function(k){return '<option value="'+esc(knownNames[k])+'">'}).join("");
+  var selD=all.filter(function(d){return d.name.toLowerCase()===curName.toLowerCase()})[0];
+  $("owBalText").value=selD?("Balance "+fmt(selD.balance)):(curName?(knownNames[curName.toLowerCase()]?"No balance owed yet":"New customer \u2014 not recorded yet"):"");
+  if(!$("owOwedDate").value)$("owOwedDate").value=todayStr();
   var q=($("owSearch").value||"").toLowerCase();
   _owingList=all.filter(function(d){return !q||d.name.toLowerCase().indexOf(q)>=0});
   box.innerHTML=_owingList.length?'<table><tr><th>Customer</th><th>Owed on</th><th>Balance owed</th><th>Record payment</th></tr>'+_owingList.map(function(d,i){
@@ -2146,16 +2187,39 @@ function renderOwing(){
     $("owNote").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
   }});
 }
+$("owCust").addEventListener("input",renderOwing);
 $("owCust").addEventListener("change",renderOwing);
 $("owSearch").addEventListener("input",renderOwing);
 $("owRecordBtn").onclick=function(){
-  var name=$("owCust").value;
+  var name=($("owCust").value||"").trim();
+  var phone=($("owPhone").value||"").trim();
   var amt=Number($("owAmt").value||0);
   var method=$("owMethod").value;
+  if(!name){$("owErr").textContent="Type or pick a customer name.";$("owOk").textContent="";return}
+  if(!(amt>0)){$("owErr").textContent="Enter an amount above \u20a60.";$("owOk").textContent="";return}
+  /* A typed new name is saved as a customer even before any debt exists,
+     so it shows in Admin > Customers. If they owe nothing yet there is
+     no payment to apply, so point to Add amount owed below instead of
+     silently losing the name. */
+  if(customerBalance(name)<=0){
+    upsertCustomer(name,phone);save();
+    $("owErr").textContent="New customer "+name+" saved. They do not owe anything yet. Use Add amount owed below to record what they owe, then record a payment here.";
+    $("owOk").textContent="";renderOwing();renderDashboard();renderJobs();renderCustomers();return;
+  }
   var r=recordDebtPayment(name,amt,method,$("owDate").value||todayStr(),$("owNote").value.trim());
   if(!r.ok){$("owErr").textContent=r.error;$("owOk").textContent="";return}
   $("owErr").textContent="";$("owOk").textContent="Payment "+fmt(r.applied)+" ("+method+") recorded for "+name+". Balance now "+fmt(r.balance)+".";
-  $("owAmt").value="";$("owNote").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
+  $("owAmt").value="";$("owNote").value="";$("owPhone").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
+};
+$("owAddOwedBtn").onclick=function(){
+  var name=($("owNewName").value||"").trim();
+  var phone=($("owNewPhone").value||"").trim();
+  var amt=Number($("owOwedAmt").value||0);
+  var desc=($("owOwedDesc").value||"").trim();
+  var r=recordAmountOwed(name,amt,desc,$("owOwedDate").value||todayStr(),phone);
+  if(!r.ok){$("owOwedErr").textContent=r.error;$("owOwedOk").textContent="";return}
+  $("owOwedErr").textContent="";$("owOwedOk").textContent="Amount owed "+fmt(amt)+" recorded for "+name+" ("+r.jobNo+"). Balance now "+fmt(r.balance)+". You can now record payments for them in Who owes us.";
+  $("owOwedAmt").value="";$("owOwedDesc").value="";$("owNewPhone").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
 };
 /* ---------- products ---------- */
 function renderProducts(){
