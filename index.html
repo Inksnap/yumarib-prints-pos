@@ -230,6 +230,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <button class="tab active" data-tab="sell">Sell</button>
     <button class="tab" data-tab="dashboard">Dashboard</button>
     <button class="tab" data-tab="jobs">Jobs</button>
+    <button class="tab" data-tab="owing">Who owes us</button>
     <button class="tab" data-tab="products" id="tabProducts">Products</button>
     <button class="tab" data-tab="admin" id="tabAdmin">Admin</button>
   </nav>
@@ -363,6 +364,11 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
     <div class="tot-row grand"><span>Net (collected minus expenses)</span><strong id="dashNet">&#8358;0</strong></div>
     <p class="muted">Expenses do not change Total collected above. Net is Total collected minus expenses for this date. The same expenses also show in Admin &gt; Expenses.</p>
   </div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Who owes us</h3>
+    <div id="dashOwing"></div>
+    <button class="btn" id="dashOwingBtn" style="margin-top:10px">Open Who owes us — record a payment</button>
+    <p class="muted">A payment recorded here lowers the customer's balance and adds to Total collected on the day it is paid.</p>
+  </div>
   <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Today's sales</h3><div id="todaySales"></div></div>
 </section>
 
@@ -394,6 +400,34 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <button class="btn" id="printJobsHistoryBtn" style="margin-top:10px">Print jobs history</button>
       <p class="muted">Prints every job created in that range, with its full detail and history, so jobs can be traced on paper.</p>
     </div>
+  </div>
+</section>
+
+<!-- WHO OWES US -->
+<section id="view-owing" class="view">
+  <h2 style="margin:0 0 4px">Who owes us</h2>
+  <p class="muted" style="margin-top:0">Always here, for every signed-in user. Pick a customer who owes money, enter what they paid, choose Cash, POS or Transfer, and save. The balance goes down, Total collected goes up on the day it is paid, and the sale or job is updated. No new sale is created.</p>
+  <div class="grid6" style="margin-bottom:12px">
+    <div class="card stat"><div class="label">Total still owed</div><div class="value" id="owTotal">₦0</div></div>
+    <div class="card stat"><div class="label">People owing</div><div class="value" id="owPeople">0</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">Record a payment</h3>
+    <div class="form-row">
+      <div><label>Customer who owes us</label><select id="owCust"><option value="">Choose a customer…</option></select></div>
+      <div><label>Balance</label><input id="owBalText" readonly placeholder="—"></div>
+      <div><label>Amount paid (₦)</label><input id="owAmt" type="number" min="0" step="1" placeholder="e.g. 10000"></div>
+      <div><label>Payment method</label><select id="owMethod"><option>Cash</option><option>POS</option><option>Transfer</option></select></div>
+      <div><label>Date paid</label><input id="owDate" type="date"></div>
+      <div><label>Note (optional)</label><input id="owNote" autocomplete="off" placeholder="e.g. part payment"></div>
+    </div>
+    <p id="owErr" class="err"></p>
+    <p id="owOk" class="ok"></p>
+    <button class="btn" id="owRecordBtn" style="margin-top:10px">Record payment</button>
+  </div>
+  <div class="card"><h3 style="margin-top:0">Everyone who owes us</h3>
+    <input id="owSearch" placeholder="Search by customer name..." autocomplete="off" style="margin-bottom:10px">
+    <div id="owList"></div>
   </div>
 </section>
 
@@ -1189,6 +1223,7 @@ function mergeSalePayment(sale,method,amt,paidBefore){
   sale.payment=paymentMethods(sale);
 }
 function isManualJobPayment(p){
+  if(!p||p.debt)return false; /* Debt payments (ref "debt:…") are counted by latePaymentExtra() on the day they were paid, so they must not also be counted here. */
   if(!p||p.ref==="customer")return false;
   if(!p.ref)return true;
   var j=(state.jobs||[]).filter(function(x){return x.id===p.ref})[0];
@@ -1240,7 +1275,7 @@ function switchTab(name){
   document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("active",t.dataset.tab===name)});
   document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
   $("view-"+name).classList.add("active");
-  if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell"){renderSell();resetCartScroll()}
+  if(name==="dashboard")renderDashboard();if(name==="jobs")renderJobs();if(name==="owing")renderOwing();if(name==="products")renderProducts();if(name==="admin")renderAdmin();if(name==="sell"){renderSell();resetCartScroll()}
 }
 /* ---------- Dashboard password: ask for the signed-in user's OWN password on every click ----------
    Not the admin password. If Omolola (Staff) is signed in, Omolola's password
@@ -1300,6 +1335,112 @@ function customerBalance(name){
   /* Sale-linked jobs (source "sale") mirror a sale, so their balance is already in that sale's balance. Counting it again would double the amount owed. */
   state.jobs.forEach(function(j){if(j.source==="sale")return;if(j.customerName&&j.customerName.toLowerCase()===name.toLowerCase())bal+=Number(j.balance||0)});
   return bal;
+}
+/* ---------- who owes us: record a payment from a debtor ----------
+   One place, used by the Who owes us tab, the Dashboard card, Jobs and
+   Admin > Customers, so a payment is recorded the same way everywhere.
+   - Oldest sale first, then oldest manual job. Sale-linked jobs are NOT
+     paid separately: their money lives in their sale, so paying the job
+     pays its sale (see recordSingleJobPayment below).
+   - No new sale is created and nothing is double-counted: the payment is
+     merged into the sale's payments (mergeSalePayment) AND recorded once
+     in state.payments as a debt entry (debt:true, with saleId or jobId),
+     so latePaymentExtra() can count it on the DAY IT WAS PAID, even when
+     the sale was made on an earlier day. That is what makes Total
+     collected rise on the payment day for an old debt.
+   - state.payments entries merge by id across machines, sales merge by
+     id with payments merged per method, jobs merge with paid only going
+     up, so the payment survives sync and reload. */
+function debtorList(){
+  var map={};
+  function add(name,phone){
+    if(!name)return;var k=name.toLowerCase();if(k==="walk-in")return;
+    if(!map[k])map[k]={name:name,phone:phone||"",balance:0,sales:[],jobs:[]};
+    if(phone&&!map[k].phone)map[k].phone=phone;
+  }
+  state.sales.forEach(function(s){if(s.voided||!s.customerName||Number(s.balance)<=0)return;add(s.customerName,s.phone);map[s.customerName.toLowerCase()].sales.push({receiptNo:s.receiptNo,date:s.date,total:s.total,paid:s.paid,balance:s.balance})});
+  state.jobs.forEach(function(j){if(j.source==="sale"||!j.customerName||Number(j.balance)<=0)return;add(j.customerName,j.phone);map[j.customerName.toLowerCase()].jobs.push({jobNo:j.jobNo,description:j.description,total:j.total,paid:j.paid,balance:j.balance})});
+  var list=Object.keys(map).map(function(k){var d=map[k];d.balance=customerBalance(d.name);return d}).filter(function(d){return d.balance>0});
+  list.sort(function(a,b){return b.balance-a.balance||a.name.localeCompare(b.name)});
+  return list;
+}
+function allocateCatShares(sale,amt){
+  var byCat={};CATS.forEach(function(g){byCat[g.name]=0});
+  var items=(sale&&sale.items)||[];var sub=items.reduce(function(a,it){return a+lineTotal(it)},0);
+  if(sub<=0||!(amt>0))return byCat;
+  var gross={};items.forEach(function(it){var c=totalCategory(it);gross[c]=(gross[c]||0)+lineTotal(it)});
+  var cats=Object.keys(gross),floors={},fracs=[],used=0;
+  cats.forEach(function(c){var raw=gross[c]/sub*amt;var f=Math.floor(raw);floors[c]=f;used+=f;fracs.push({c:c,frac:raw-f})});
+  var left=Math.round(amt)-used;fracs.sort(function(a,b){return b.frac-a.frac});
+  for(var i=0;i<left&&fracs.length;i++)floors[fracs[i%fracs.length].c]+=1;
+  cats.forEach(function(c){byCat[c]=(byCat[c]||0)+floors[c]});
+  return byCat;
+}
+function debtPaymentIso(dateStr){
+  var d=(dateStr||todayStr());
+  return (d===todayStr())?new Date().toISOString():d+"T12:00:00";
+}
+function recordDebtPayment(name,amt,method,dateStr,note){
+  name=(name||"").trim();amt=Math.round(Number(amt)||0);method=method||"Cash";
+  if(!name)return {ok:false,error:"Choose a customer who owes money."};
+  if(!(amt>0))return {ok:false,error:"Enter an amount above ₦0."};
+  var bal=customerBalance(name);
+  if(amt>bal)return {ok:false,error:"Amount is more than the balance of "+fmt(bal)+"."};
+  var iso=debtPaymentIso(dateStr),by=currentUser?currentUser.name:"",remaining=amt,applied=0;
+  var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
+  targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));var pb=Number(s.paid||0);s.paid+=take;s.balance-=take;mergeSalePayment(s,method,take,pb);touchRecord(s);state.payments.push(touchRecord({id:uid(),date:iso,amount:take,method:method,ref:"debt:"+s.id,saleId:s.id,receiptNo:s.receiptNo,customerName:name,debt:true,by:by,note:note||""}));remaining-=take;applied+=take});
+  state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;j.updated=new Date().toISOString();touchRecord(j);addJobHistory(j,"Payment","Payment "+fmt(take)+" ("+method+") received"+(note?": "+note:"")+". Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");state.payments.push(touchRecord({id:uid(),date:iso,amount:take,method:method,ref:"debt:"+j.id,jobId:j.id,customerName:name,debt:true,by:by,note:note||""}));remaining-=take;applied+=take});
+  save();
+  return {ok:true,applied:applied,balance:customerBalance(name)};
+}
+function recordSingleJobPayment(job,amt,method,dateStr,note){
+  if(!job)return {ok:false,error:"Job not found."};
+  amt=Math.round(Number(amt)||0);method=method||"Cash";
+  if(!(amt>0))return {ok:false,error:"Enter an amount to record."};
+  if(amt>Number(job.balance||0))return {ok:false,error:"Amount is more than the balance of "+fmt(job.balance)+"."};
+  var iso=debtPaymentIso(dateStr),by=currentUser?currentUser.name:"";
+  job.paid+=amt;job.balance-=amt;job.updated=new Date().toISOString();touchRecord(job);
+  if(job.saleId){
+    var ls=getSale(job.saleId);
+    if(ls){var pb=Number(ls.paid||0);ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0));mergeSalePayment(ls,method,amt,pb);touchRecord(ls);state.payments.push(touchRecord({id:uid(),date:iso,amount:amt,method:method,ref:"debt:"+ls.id,saleId:ls.id,receiptNo:ls.receiptNo,customerName:job.customerName,debt:true,by:by,note:note||""}))}
+    addJobHistory(job,"Payment","Payment "+fmt(amt)+" ("+method+") received on Receipt "+(job.saleReceiptNo||"")+(note?": "+note:"")+". Paid so far "+fmt(job.paid)+", balance remaining "+fmt(job.balance)+".");
+  }else{
+    state.payments.push(touchRecord({id:uid(),date:iso,amount:amt,method:method,ref:"debt:"+job.id,jobId:job.id,customerName:job.customerName,debt:true,by:by,note:note||""}));
+    addJobHistory(job,"Payment","Payment "+fmt(amt)+" ("+method+") received"+(note?": "+note:"")+". Paid so far "+fmt(job.paid)+", balance remaining "+fmt(job.balance)+".");
+  }
+  save();
+  return {ok:true,balance:job.balance};
+}
+/* Money collected on a date, for payments made AFTER the sale/job date.
+   A sale's own payments are already counted on its sale date through
+   saleCollected(), so a debt entry is only added here when its sale was
+   NOT made in this range (otherwise it would be counted twice). Manual
+   jobs are never sales, so their payments are always added here, on the
+   day they were paid. Legacy manual-job payments (no debt flag) are
+   included the same way. */
+function latePaymentExtra(from,to){
+  var out={total:0,byMethod:{},byCat:{},byStaff:{},manual:0};
+  CATS.forEach(function(g){out.byCat[g.name]=0});
+  (state.payments||[]).forEach(function(p){
+    var dd=dateOf(p.date);if(dd<from||dd>to)return;
+    var amt=Number(p.amount||0);if(!(amt>0))return;
+    var method=p.method||"Cash";
+    if(p.debt){
+      if(p.saleId){var s=getSale(p.saleId);if(!s||s.voided)return;if(dateOf(s.date)>=from&&dateOf(s.date)<=to)return;out.total+=amt;out.byMethod[method]=(out.byMethod[method]||0)+amt;var sh=allocateCatShares(s,amt);CATS.forEach(function(g){out.byCat[g.name]+=sh[g.name]||0});if(p.by)out.byStaff[p.by]=(out.byStaff[p.by]||0)+amt}
+      else if(p.jobId){var j=jobById(p.jobId);if(!j||j.source==="sale"||j.saleId)return;out.total+=amt;out.byMethod[method]=(out.byMethod[method]||0)+amt;out.manual+=amt;if(p.by)out.byStaff[p.by]=(out.byStaff[p.by]||0)+amt}
+    }else if(isManualJobPayment(p)){
+      out.total+=amt;out.byMethod[method]=(out.byMethod[method]||0)+amt;out.manual+=amt;if(p.by)out.byStaff[p.by]=(out.byStaff[p.by]||0)+amt;
+    }
+  });
+  return out;
+}
+function augmentedCatTotals(list,from,to){
+  var c=catTotalsCollected(list);
+  var ex=latePaymentExtra(from,to);
+  CATS.forEach(function(g){c.byCat[g.name]=(c.byCat[g.name]||0)+(ex.byCat[g.name]||0)});
+  c.catSum=CATS.reduce(function(a,g){return a+(c.byCat[g.name]||0)},0);
+  c.totalCollected=c.collected+ex.total;c.manual=ex.manual;c.extraTotal=ex.total;
+  return c;
 }
 /* ---------- sell ---------- */
 function renderCatPills(){
@@ -1716,7 +1857,8 @@ function salesOn(date){return state.sales.filter(function(s){return dateOf(s.dat
 function renderDashboard(){
   var d=$("dashDate").value||todayStr();$("dashDate").value=d;
   var list=salesOn(d);
-  var collected=list.reduce(function(a,s){return a+saleCollected(s)},0);
+  var _late=latePaymentExtra(d,d);
+  var collected=list.reduce(function(a,s){return a+saleCollected(s)},0)+_late.total;
   var owed=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return j.source!=="sale"&&dateOf(j.created)===d}).reduce(function(a,j){return a+Number(j.balance||0)},0);
   $("dGrand").textContent=fmt(collected);$("dSales").textContent=list.length;$("dCollected").textContent=fmt(collected);$("dOwed").textContent=fmt(owed);
   var low=state.products.filter(function(p){return p.stock!==null&&p.stock!==undefined&&p.stock<=p.lowAt});
@@ -1725,18 +1867,22 @@ function renderDashboard(){
      Paper/Card split groups and Lanyards count back into DI via totalCategory().
      Rows add up to the money collected. Nothing else is added here.
      No other row is shown here. */
-  var catCol=catTotalsCollected(list);var byCat=catCol.byCat;
+  var catCol=augmentedCatTotals(list,d,d);var byCat=catCol.byCat;
   var catSum=catCol.catSum;var catRows=CATS.map(function(g){var v=byCat[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   $("catTotals").innerHTML=catRows+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSum)+'</strong></div>'+
     '<div class="tot-row"><span>Balance still owed</span><strong>'+fmt(catCol.balance)+'</strong></div>'+
     '<p class="muted">Category amounts are money collected only. The total above is only money customers have paid.</p>';
   var byPay={};list.forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
-  state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
+  Object.keys(_late.byMethod).forEach(function(m){byPay[m]=(byPay[m]||0)+_late.byMethod[m]});
   $("payTotals").innerHTML=Object.keys(byPay).length?Object.keys(byPay).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byPay[k])+'</strong></div>'}).join(""):'<p class="muted">No money received on this date yet.</p>';
   var byStaff={};list.forEach(function(s){var k=s.cashierName||s.cashier;byStaff[k]=(byStaff[k]||0)+saleCollected(s)});
+  Object.keys(_late.byStaff).forEach(function(k){byStaff[k]=(byStaff[k]||0)+_late.byStaff[k]});
   $("staffTotals").innerHTML=Object.keys(byStaff).length?Object.keys(byStaff).map(function(k){return '<div class="tot-row"><span>'+esc(k)+'</span><strong>'+fmt(byStaff[k])+'</strong></div>'}).join(""):'<p class="muted">No sales on this date yet.</p>';
   renderClosing(d);
+  var _ow=debtorList();var _owTotal=_ow.reduce(function(a,x){return a+Number(x.balance||0)},0);
+  var _dob=$("dashOwing");
+  if(_dob){_dob.innerHTML=_ow.length?'<div class="tot-row grand"><span>Total still owed</span><strong>'+fmt(_owTotal)+'</strong></div>'+_ow.slice(0,5).map(function(x){return '<div class="tot-row"><span>'+esc(x.name)+'</span><strong>'+fmt(x.balance)+'</strong></div>'}).join("")+(_ow.length>5?'<p class="muted">And '+(_ow.length-5)+' more. Open Who owes us to see everyone.</p>':""):'<p class="muted">Nobody owes money right now.</p>'}
   if($("dashExpDate"))$("dashExpDate").value=d;
   renderDashExpenses(d,collected);
   var ts=$("todaySales");
@@ -1748,7 +1894,7 @@ function renderClosing(d){
   var list=salesOn(d);
   var cash=0,pos=0,tr=0;
   list.forEach(function(s){paymentParts(s).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)})});
-  state.payments.filter(function(p){return dateOf(p.date)===d&&isManualJobPayment(p)}).forEach(function(p){if(p.method==="Cash")cash+=Number(p.amount||0);if(p.method==="POS")pos+=Number(p.amount||0);if(p.method==="Transfer")tr+=Number(p.amount||0)});
+  var _le=latePaymentExtra(d,d);Object.keys(_le.byMethod).forEach(function(m){if(m==="Cash")cash+=_le.byMethod[m];if(m==="POS")pos+=_le.byMethod[m];if(m==="Transfer")tr+=_le.byMethod[m]});
   var cashExp=state.expenses.filter(function(e){return dateOf(e.date)===d}).reduce(function(a,e){return a+Number(e.amount||0)},0);
   var expected=cash-cashExp;
   $("closingCash").textContent=fmt(cash);$("closingPos").textContent=fmt(pos);$("closingTransfer").textContent=fmt(tr);$("closingExpected").textContent=fmt(expected);
@@ -1758,6 +1904,7 @@ function renderClosing(d){
   $("closingSaved").textContent=saved?("Saved "+new Date(saved.savedAt).toLocaleString()+" by "+saved.by+". Counted "+fmt(saved.countedCash)+", difference "+fmt(saved.difference)+"."):"";
 }
 $("dashDate").addEventListener("change",renderDashboard);
+$("dashOwingBtn").onclick=function(){switchTab("owing")};
 /* ---------- print / save totals by category + money by payment ----------
    Sheet is money collected only: the four categories, Categories total,
    Balance still owed, then Money by payment (Cash, POS, Transfer).
@@ -1766,7 +1913,7 @@ $("dashDate").addEventListener("change",renderDashboard);
 function moneyByPaymentFor(list,from,to){
   var byPay={};
   (list||[]).forEach(function(s){paymentParts(s).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)})});
-  state.payments.filter(function(p){var dd=dateOf(p.date);return isManualJobPayment(p)&&dd>=from&&dd<=to}).forEach(function(p){byPay[p.method]=(byPay[p.method]||0)+Number(p.amount||0)});
+  var _le=latePaymentExtra(from,to);Object.keys(_le.byMethod).forEach(function(m){byPay[m]=(byPay[m]||0)+_le.byMethod[m]});
   return byPay;
 }
 function totalsSheetHtml(dateLabel,list,catCol,from,to){
@@ -1777,7 +1924,7 @@ function totalsSheetHtml(dateLabel,list,catCol,from,to){
   var payRows=methods.map(function(m){return '<tr><td>'+esc(m)+'</td><td>'+fmt(byPay[m]||0)+'</td></tr>'}).join("");
   var payTotal=methods.reduce(function(a,m){return a+(byPay[m]||0)},0);
   var expTotal=(state.expenses||[]).filter(function(e){var dd=dateOf(e.date);return dd>=from&&dd<=to}).reduce(function(a,e){return a+Number(e.amount||0)},0);
-  var netTotal=catCol.catSum-expTotal;
+  var netTotal=(catCol.totalCollected!=null?catCol.totalCollected:catCol.catSum)-expTotal;
   return '<div class="job-history"><h3>'+esc(state.shop.name||"YUMARIB PRINTS")+' — Totals by category</h3>'+
   '<p style="text-align:center">'+esc(dateLabel)+' · Printed '+esc(fmtDT(new Date().toISOString()))+' by '+esc(currentUser?currentUser.name:"")+'</p>'+
   '<h4>Totals by category (money collected)</h4><table><tr><th>Category</th><th>Money collected</th></tr>'+catRows+
@@ -1793,12 +1940,12 @@ function printDashboardTotals(){
   renderDashboard();
   var d=$("dashDate").value||todayStr();
   var list=salesOn(d);
-  $("printArea").innerHTML=totalsSheetHtml(d,list,catTotalsCollected(list),d,d);
+  $("printArea").innerHTML=totalsSheetHtml(d,list,augmentedCatTotals(list,d,d),d,d);
   window.print();
 }
 function printReportTotals(){
   var r=renderReport();
-  $("printArea").innerHTML=totalsSheetHtml(r.from+" to "+r.to,r.list,catTotalsCollected(r.list),r.from,r.to);
+  $("printArea").innerHTML=totalsSheetHtml(r.from+" to "+r.to,r.list,augmentedCatTotals(r.list,r.from,r.to),r.from,r.to);
   window.print();
 }
 $("printTotalsBtn").onclick=function(){printDashboardTotals()};
@@ -1937,19 +2084,12 @@ function renderJobs(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.paybtn})[0];if(!j)return;
     var amt=Number(box.querySelector('[data-payamt="'+j.id+'"]').value||0);
     var method=box.querySelector('[data-paymethod="'+j.id+'"]').value;
-    if(amt<=0){alert("Enter an amount to record.");return}
-    if(amt>j.balance){alert("Amount is more than the balance of "+fmt(j.balance)+".");return}
-    j.paid+=amt;j.balance-=amt;j.updated=new Date().toISOString();touchRecord(j);
-    if(j.saleId){
-      /* Money lives in the sale: a payment on this job is a payment on its sale too. Do not also push a separate payment, or the cash would be counted twice. */
-      var ls=getSale(j.saleId);
-      if(ls){var _pb=Number(ls.paid||0);ls.paid=Math.min(Number(ls.total||0),Number(ls.paid||0)+amt);ls.balance=Math.max(0,Number(ls.total||0)-Number(ls.paid||0));mergeSalePayment(ls,method,amt,_pb);touchRecord(ls)}
-      addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received on Receipt "+(j.saleReceiptNo||"")+". Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
-    }else{
-      state.payments.push(touchRecord({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:j.id,customerName:j.customerName}));
-      addJobHistory(j,"Payment","Payment "+fmt(amt)+" ("+method+") received. Paid so far "+fmt(j.paid)+", balance remaining "+fmt(j.balance)+".");
-    }
-    save();renderJobs();renderDashboard();
+    /* Money lives in the sale for a sale-linked job: recordSingleJobPayment
+       pays its sale too, and records one debt entry so the payment counts
+       on the day it was paid. It never creates a second sale. */
+    var r=recordSingleJobPayment(j,amt,method,todayStr(),"");
+    if(!r.ok){alert(r.error);return}
+    renderJobs();renderDashboard();renderOwing();
   }});
   box.querySelectorAll("[data-collect]").forEach(function(b){b.onclick=function(){
     var j=state.jobs.filter(function(x){return x.id===b.dataset.collect})[0];if(!j)return;
@@ -1973,6 +2113,50 @@ $("addJobBtn").onclick=function(){
   renderJobs();
 };
 $("printJobsHistoryBtn").onclick=function(){printJobsHistoryRange()};
+
+/* ---------- who owes us tab ----------
+   Always visible to every signed-in user (not admin-only). Lists everyone
+   with a balance above ₦0, oldest debt first by amount, with the receipts
+   and jobs that make up the balance, and records a payment with the shared
+   recordDebtPayment() above. */
+var _owingList=[];
+function renderOwing(){
+  var box=$("owList");if(!box)return;
+  var all=debtorList();
+  var total=all.reduce(function(a,x){return a+Number(x.balance||0)},0);
+  $("owTotal").textContent=fmt(total);$("owPeople").textContent=String(all.length);
+  if(!$("owDate").value)$("owDate").value=todayStr();
+  var sel=$("owCust");var cur=sel.value;
+  sel.innerHTML='<option value="">Choose a customer…</option>'+all.map(function(d){return '<option value="'+esc(d.name)+'">'+esc(d.name)+' — '+fmt(d.balance)+' owed</option>'}).join("");
+  if(cur&&all.some(function(d){return d.name===cur}))sel.value=cur;
+  var selD=all.filter(function(d){return d.name===sel.value})[0];
+  $("owBalText").value=selD?("Balance "+fmt(selD.balance)):"";
+  var q=($("owSearch").value||"").toLowerCase();
+  _owingList=all.filter(function(d){return !q||d.name.toLowerCase().indexOf(q)>=0});
+  box.innerHTML=_owingList.length?'<table><tr><th>Customer</th><th>Owed on</th><th>Balance owed</th><th>Record payment</th></tr>'+_owingList.map(function(d,i){
+    var owedOn=d.sales.map(function(x){return esc(x.receiptNo||"")+" · "+fmt(x.balance)}).concat(d.jobs.map(function(x){return esc(x.jobNo||"")+" · "+fmt(x.balance)})).join("<br>")||"—";
+    return '<tr><td><strong>'+esc(d.name)+'</strong><br><span class="muted">'+esc(d.phone||"—")+'</span></td><td>'+owedOn+'</td><td><strong>'+fmt(d.balance)+'</strong></td><td><input type="number" min="0" placeholder="Pay ₦" data-owpay="'+i+'" style="width:110px"> <select data-owmethod="'+i+'" style="width:auto"><option>Cash</option><option>POS</option><option>Transfer</option></select> <button class="btn btn-sm" data-owbtn="'+i+'">Record payment</button></td></tr>'}).join("")+'</table>':'<p class="muted">Nobody owes money right now.</p>';
+  box.querySelectorAll("[data-owbtn]").forEach(function(b){b.onclick=function(){
+    var d=_owingList[Number(b.dataset.owbtn)];if(!d)return;
+    var amt=Number(box.querySelector('[data-owpay="'+b.dataset.owbtn+'"]').value||0);
+    var method=box.querySelector('[data-owmethod="'+b.dataset.owbtn+'"]').value;
+    var r=recordDebtPayment(d.name,amt,method,$("owDate").value||todayStr(),$("owNote").value.trim());
+    if(!r.ok){$("owErr").textContent=r.error;$("owOk").textContent="";return}
+    $("owErr").textContent="";$("owOk").textContent="Payment "+fmt(r.applied)+" ("+method+") recorded for "+d.name+". Balance now "+fmt(r.balance)+".";
+    $("owNote").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
+  }});
+}
+$("owCust").addEventListener("change",renderOwing);
+$("owSearch").addEventListener("input",renderOwing);
+$("owRecordBtn").onclick=function(){
+  var name=$("owCust").value;
+  var amt=Number($("owAmt").value||0);
+  var method=$("owMethod").value;
+  var r=recordDebtPayment(name,amt,method,$("owDate").value||todayStr(),$("owNote").value.trim());
+  if(!r.ok){$("owErr").textContent=r.error;$("owOk").textContent="";return}
+  $("owErr").textContent="";$("owOk").textContent="Payment "+fmt(r.applied)+" ("+method+") recorded for "+name+". Balance now "+fmt(r.balance)+".";
+  $("owAmt").value="";$("owNote").value="";renderOwing();renderDashboard();renderJobs();renderCustomers();
+};
 /* ---------- products ---------- */
 function renderProducts(){
   var q=($("prodSearch").value||"").toLowerCase();
@@ -2042,9 +2226,12 @@ function renderReport(){
   $("repFrom").value=from;$("repTo").value=to;
   var list=state.sales.filter(function(s){return !s.voided&&dateOf(s.date)>=from&&dateOf(s.date)<=to});
   var total=list.reduce(function(a,s){return a+Number(s.total||0)},0);
-  var collected=list.reduce(function(a,s){return a+saleCollected(s)},0);
-  $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Total collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(total-collected)+'</strong></div>';
-  var catColR=catTotalsCollected(list);var byCatR=catColR.byCat;
+  var _saleCollected=list.reduce(function(a,s){return a+saleCollected(s)},0);
+  var _exR=latePaymentExtra(from,to);
+  var collected=_saleCollected+_exR.total;
+  var _owedR=list.reduce(function(a,s){return a+Number(s.balance||0)},0)+state.jobs.filter(function(j){return j.source!=="sale"&&dateOf(j.created)>=from&&dateOf(j.created)<=to}).reduce(function(a,j){return a+Number(j.balance||0)},0);
+  $("repSummary").innerHTML='<div class="tot-row"><span>Sales in range</span><strong>'+list.length+'</strong></div><div class="tot-row"><span>Total collected</span><strong>'+fmt(collected)+'</strong></div><div class="tot-row"><span>Still owed</span><strong>'+fmt(_owedR)+'</strong></div>';
+  var catColR=augmentedCatTotals(list,from,to);var byCatR=catColR.byCat;
   var catSumR=catColR.catSum;var catRowsR=CATS.map(function(g){var v=byCatR[g.name]||0;return '<div class="tot-row"><span>'+esc(g.label)+' (collected)</span><strong>'+fmt(v)+'</strong></div>'}).join("");
   $("repCat").innerHTML='<h4>Totals by category (money collected — DI, Large Format, Borderless, UV Print — even ₦0)</h4>'+catRowsR+
     '<div class="tot-row grand"><span>Categories total (money collected)</span><strong>'+fmt(catSumR)+'</strong></div>'+
@@ -2085,14 +2272,9 @@ function renderCustomers(){
   $("custList").querySelectorAll("[data-cbtn]").forEach(function(b){b.onclick=function(){
     var name=b.dataset.cbtn;var amt=Number($("custList").querySelector('[data-cpay="'+CSS.escape(name)+'"]').value||0);
     var method=$("custList").querySelector('[data-cmethod="'+CSS.escape(name)+'"]').value;
-    if(amt<=0){alert("Enter an amount.");return}
-    var bal=customerBalance(name);if(amt>bal){alert("Amount is more than the balance of "+fmt(bal)+".");return}
-    var remaining=amt;
-    var targets=state.sales.filter(function(s){return !s.voided&&s.customerName&&s.customerName.toLowerCase()===name.toLowerCase()&&Number(s.balance)>0}).sort(function(a,b){return new Date(a.date)-new Date(b.date)});
-    targets.forEach(function(s){if(remaining<=0)return;var take=Math.min(remaining,Number(s.balance));var _pb=Number(s.paid||0);s.paid+=take;s.balance-=take;mergeSalePayment(s,method,take,_pb);touchRecord(s);remaining-=take});
-    state.jobs.filter(function(j){return j.source!=="sale"&&j.customerName&&j.customerName.toLowerCase()===name.toLowerCase()&&Number(j.balance)>0}).sort(function(a,b){return new Date(a.created)-new Date(b.created)}).forEach(function(j){if(remaining<=0)return;var take=Math.min(remaining,Number(j.balance));j.paid+=take;j.balance-=take;touchRecord(j);remaining-=take});
-    state.payments.push(touchRecord({id:uid(),date:new Date().toISOString(),amount:amt,method:method,ref:"customer",customerName:name}));
-    save();renderCustomers();renderDashboard();
+    var r=recordDebtPayment(name,amt,method,todayStr(),"");
+    if(!r.ok){alert(r.error);return}
+    renderCustomers();renderDashboard();renderOwing();
   }});
 }
 $("custFilterOwed").addEventListener("change",renderCustomers);
@@ -2220,7 +2402,7 @@ var LOGO_SRC=LOGO_BLACK_CLIPART_SRC;
 updateLogos(document.documentElement.getAttribute("data-theme")||"dark");
 
 /* ---------- init ---------- */
-function renderAll(){renderSell();renderDashboard();renderJobs();renderProducts();renderAdmin()}
+function renderAll(){renderSell();renderDashboard();renderJobs();renderOwing();renderProducts();renderAdmin()}
 load();
 if(!state.users.length)showSetup();else showLogin();
 initCloud();
