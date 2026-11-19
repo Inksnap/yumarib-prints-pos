@@ -568,7 +568,7 @@ label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}
       <h3 style="margin-top:0">Cloud backup (online database)</h3>
       <p class="muted">This protects your data if Chrome data is cleared. When the cloud is connected, every sale is saved online as well as in this browser. If the internet drops, the POS still works from this browser and syncs when it is back.</p>
       <p><strong>Status: <span id="cloudStatus">Not set up yet</span></strong></p>
-      <p class="muted">POS code version: <strong>v45</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
+      <p class="muted">POS code version: <strong>v46</strong> — if this still says v39 or lower after reload, close Chrome completely and reopen it, the old cached copy is still running.</p>
       <p class="muted" id="cloudStatusDetail">Cloud config is built into the website, no paste needed on this machine. The box below shows the built-in config; only change it here if the Firebase project ever changes.</p>
       <p><strong>This machine:</strong> <span id="machineId">—</span> <span class="muted" id="machineNameLabel"></span></p>
       <label>Machine name (so staff know which machine this is, e.g. Front Desk)</label>
@@ -771,8 +771,22 @@ function catColor(c){var f=SELL_GROUPS.filter(function(x){return x.name===c})[0]
 function catClass(c){return "cat-"+String(c||"DI").replace(/[^A-Za-z0-9]/g,"")}
 function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function fmt(n){n=Math.round(Number(n)||0);return "₦"+n.toLocaleString("en-NG")}
-function todayStr(d){d=d||new Date();var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),da=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+da}
-function dateOf(iso){return String(iso||"").slice(0,10)}
+/* ---------- Lagos dates (v46, 2026-11-19) ----------
+   The shop is in Lagos (Africa/Lagos, UTC+1, no daylight saving).
+   Sales are stored as UTC ISO strings (new Date().toISOString()), so
+   slicing the first 10 characters gave the UTC date, not the Lagos date:
+   a sale at 00:00-00:59 WAT landed on the PREVIOUS day in Dashboard /
+   Reports, moving 23 sales (NGN 391,200) off 19 Nov 2026. All totals
+   (Dashboard, Reports, closing, expenses, jobs, late payments) go
+   through dateOf(), so fixing it here fixes them all. Old stored dates
+   are NOT rewritten; dateOf() now reads each stored instant in Lagos.
+   A plain "YYYY-MM-DD" or a "YYYY-MM-DDTHH:MM:SS" value with no zone
+   (used for backdated debt payments / amount owed, set at Lagos noon)
+   is taken as-is, it already is a Lagos date. */
+function lagosParts(d){try{var parts={};new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(d).forEach(function(x){parts[x.type]=x.value});return parts}catch(e){return null}}
+function todayStr(d){d=d||new Date();var p=lagosParts(d);if(p)return p.year+"-"+p.month+"-"+p.day;var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),da=String(d.getDate()).padStart(2,"0");return y+"-"+m+"-"+da}
+function dateOf(iso){var s=String(iso||"");if(!s)return "";if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)&&!/[Zz]|[+-]\d{2}:?\d{2}$/.test(s))return s.slice(0,10);var dt=new Date(s);if(isNaN(dt))return s.slice(0,10);var p=lagosParts(dt);if(p)return p.year+"-"+p.month+"-"+p.day;return s.slice(0,10)}
+function lagosDT(iso){var s=String(iso||"");if(!s)return "";var d=dateOf(iso);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return d;var dt=new Date(s);if(isNaN(dt))return s;var p=lagosParts(dt);if(p)return p.year+"-"+p.month+"-"+p.day+" "+p.hour+":"+p.minute;return s}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function $(id){return document.getElementById(id)}
 function seedProducts(){
@@ -799,6 +813,8 @@ function load(){
     state.users=state.users||[];state.sales=state.sales||[];state.jobs=state.jobs||[];state.customers=state.customers||[];
     state.expenses=state.expenses||[];state.payments=state.payments||[];state.closings=state.closings||[];
     state.receiptSeq=state.receiptSeq||0;state.jobSeq=state.jobSeq||0;state.sharedUpdatedAt=state.sharedUpdatedAt||0;state.deletedProductIds=state.deletedProductIds||{};
+    /* v46: if this machine's receipt counter was ever reset, it would reuse numbers already used by its own sales (RJ38T-0635 and RJ38T-0636 were both used twice on 19 Nov). Lift the counter to the highest receipt number this device has already used, so the next sale gets a fresh number. Existing receipts are not changed. */
+    state.sales.forEach(function(s){if(s&&s.deviceId===DEVICE_ID&&s.receiptNo){var m=String(s.receiptNo).match(/(\d+)$/);if(m)state.receiptSeq=Math.max(state.receiptSeq,Number(m[1]))}});
     /* Old sales have no payments array: build it from payment / paid, so
        split-payment receipt, Dashboard and reports show them correctly. */
     state.sales.forEach(function(s){if(!Array.isArray(s.payments)){s.payments=(Number(s.paid)>0&&s.payment&&s.payment!=="Credit")?[{method:s.payment,amount:Number(s.paid)}]:[]}});
@@ -1786,7 +1802,10 @@ $("chargeBtn").onclick=function(){
   if(cashPart>0&&cashReceived<cashPart){alert("Cash received is less than the cash part of "+fmt(cashPart)+".");return}
   var paySummary=payments.length?payments.map(function(p){return p.method}).filter(function(v,i,a){return a.indexOf(v)===i}).join(" + "):"Credit";
   state.receiptSeq=(state.receiptSeq||0)+1;
-  var sale={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,receiptNo:"R"+DEVICE_ID+"-"+String(state.receiptSeq).padStart(4,"0"),date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
+  /* v46: never issue a receipt number already used by a sale in this state (by id a sale is unique, but by receipt number it must be unique too, or receipt-based matching loses one sale). */
+  var _rn="R"+DEVICE_ID+"-"+String(state.receiptSeq).padStart(4,"0");
+  while(state.sales.some(function(x){return x&&x.receiptNo===_rn})){state.receiptSeq+=1;_rn="R"+DEVICE_ID+"-"+String(state.receiptSeq).padStart(4,"0")}
+  var sale={id:uid(),deviceId:DEVICE_ID,_syncAt:Date.now(),_modifiedBy:DEVICE_ID,receiptNo:_rn,date:new Date().toISOString(),cashier:currentUser.username,cashierName:currentUser.name,
     items:cart.map(function(it){return {productId:it.productId,name:it.name,category:it.category,qty:it.qty,price:it.price,manualPrice:!!it.manualPrice,flatAmount:!!it.flatAmount}}),
     subtotal:calc.subtotal,discountType:"discounted",discountValue:($("discountedPrice").value===""?null:Math.max(0,Math.floor(Number($("discountedPrice").value)||0))),discountedPrice:($("discountedPrice").value===""?null:Math.max(0,Math.floor(Number($("discountedPrice").value)||0))),discount:calc.discount,total:calc.total,
     paid:paid,balance:balance,payment:balance>0&&paid===0?"Credit":paySummary,payments:payments,customerName:name||"",phone:phone||"",
@@ -2309,8 +2328,8 @@ function renderReport(){
 $("repRun").onclick=renderReport;
 $("exportCsvBtn").onclick=function(){
   var r=renderReport();
-  var rows=[["Receipt","Date","Cashier","Customer","Item","Qty","Unit price","Line total","Total","Paid","Balance","Payment"]];
-   r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.date,s.cashierName,s.customerName,it.name,it.qty,it.price,lineTotal(it),s.total,s.paid,s.balance,paymentSummary(s)])})});
+  var rows=[["Receipt","Sale ID","Date (Lagos)","Cashier","Customer","Item","Qty","Unit price","Line total","Total","Paid","Balance","Payment"]];
+   r.list.forEach(function(s){s.items.forEach(function(it){rows.push([s.receiptNo,s.id,lagosDT(s.date),s.cashierName,s.customerName,it.name,it.qty,it.price,lineTotal(it),s.total,s.paid,s.balance,paymentSummary(s)])})});
   var csv=rows.map(function(row){return row.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="yumarib-report-"+r.from+"-to-"+r.to+".csv";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 };
